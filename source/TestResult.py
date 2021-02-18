@@ -474,7 +474,7 @@ if __name__ =='__main__':
     # export test results to csv
     test.TestResult_to_csv(fname_out)
 
-    # calculate test results
+    # print test results
     test.logger.info('TestResult statistics:')
     test.logger.info('Precharge phase:')
     test.logger.info('Duration: {} min'.format(test.prechrg_time()))

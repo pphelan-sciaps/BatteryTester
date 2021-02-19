@@ -16,9 +16,9 @@ DISCHRG_I_THRESH_mA = -50
 
 
 class TestResult():
-    def __init__(self,fname='',logger_name='BatteryTest'):
+    def __init__(self,fname='',logger_name=''):
         # open log
-        self.logger = get_logger(logger_name)
+        self.logger = get_logger(logger_name+'.'+__name__)
 
         # intialize vars
         self.clear_test_results()        

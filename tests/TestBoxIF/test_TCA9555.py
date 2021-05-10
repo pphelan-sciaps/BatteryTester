@@ -5,8 +5,8 @@
 # RegisterMap
 import pytest
 
-from source.TestBoxIF import TCA9555
-from source.TestBoxIF import ConfigError
+from source.TestBoxIF.TCA9555 import TCA9555
+from source.TestBoxIF.TCA9555 import ConfigError
 
 # fixtures
 @pytest.fixture
@@ -49,33 +49,33 @@ def test_output_port_1_default():
 
 def test_output_port_0_write_word():
 	tca9555 = TCA9555()
-	tca9555.write_output_port_word(0,'0xa5')
+	tca9555.write_output_port_word(0,int('0xa5',0))
 	assert tca9555._io_ports[0].output_port.uint == int('0xa5',0)
 	assert tca9555._io_ports[1].output_port.uint == int('0xff',0)
 
 def test_output_port_1_write_word():
 	tca9555 = TCA9555()
-	tca9555.write_output_port_word(1,'0x5a')
+	tca9555.write_output_port_word(1,int('0x5a',0))
 	assert tca9555._io_ports[0].output_port.uint == int('0xff',0)
 	assert tca9555._io_ports[1].output_port.uint == int('0x5a',0)
 
 def test_output_port_write_word_index_error():
 	tca9555 = TCA9555()
 	with pytest.raises(IndexError):
-		tca9555.write_output_port_word(2,'0x00')
+		tca9555.write_output_port_word(2,int('0x00',0))
 
 def test_output_port_0_set_bit():
 	tca9555 = TCA9555()
-	tca9555.write_output_port_word(0,'0x00')
-	tca9555.write_output_port_word(1,'0x00')
+	tca9555.write_output_port_word(0,int('0x00',0))
+	tca9555.write_output_port_word(1,int('0x00',0))
 	tca9555.set_output_port_bit(port=0,bit=7)
 	assert tca9555._io_ports[0].output_port.uint == int('0x80',0)
 	assert tca9555._io_ports[1].output_port.uint == int('0x00',0)
 
 def test_output_port_1_set_bit():
 	tca9555 = TCA9555()
-	tca9555.write_output_port_word(0,'0x00')
-	tca9555.write_output_port_word(1,'0x00')
+	tca9555.write_output_port_word(0,int('0x00',0))
+	tca9555.write_output_port_word(1,int('0x00',0))
 	tca9555.set_output_port_bit(port=1,bit=3)
 	assert tca9555._io_ports[0].output_port.uint == int('0x00',0)
 	assert tca9555._io_ports[1].output_port.uint == int('0x08',0)
@@ -104,33 +104,33 @@ def test_config_1_default():
 
 def test_config_0_write_word():
 	tca9555 = TCA9555()
-	tca9555.write_config_word(0,'0xa5')
+	tca9555.write_config_word(0,int('0xa5',0))
 	assert tca9555._io_ports[0].config.uint == int('0xa5',0)
 	assert tca9555._io_ports[1].config.uint == int('0xff',0)
 
 def test_config_1_write_word():
 	tca9555 = TCA9555()
-	tca9555.write_config_word(1,'0x5a')
+	tca9555.write_config_word(1,int('0x5a',0))
 	assert tca9555._io_ports[0].config.uint == int('0xff',0)
 	assert tca9555._io_ports[1].config.uint == int('0x5a',0)
 
 def test_config_write_word_index_error():
 	tca9555 = TCA9555()
 	with pytest.raises(IndexError):
-		tca9555.write_config_word(2,'0x00')
+		tca9555.write_config_word(2,int('0x00',0))
 
 def test_config_0_set_bit():
 	tca9555 = TCA9555()
-	tca9555.write_config_word(0,'0x00')
-	tca9555.write_config_word(1,'0x00')
+	tca9555.write_config_word(0,int('0x00',0))
+	tca9555.write_config_word(1,int('0x00',0))
 	tca9555.set_config_bit(port=0,bit=7)
 	assert tca9555._io_ports[0].config.uint == int('0x80',0)
 	assert tca9555._io_ports[1].config.uint == int('0x00',0)
 
 def test_config_1_set_bit():
 	tca9555 = TCA9555()
-	tca9555.write_config_word(0,'0x00')
-	tca9555.write_config_word(1,'0x00')
+	tca9555.write_config_word(0,int('0x00',0))
+	tca9555.write_config_word(1,int('0x00',0))
 	tca9555.set_config_bit(port=1,bit=3)
 	assert tca9555._io_ports[0].config.uint == int('0x00',0)
 	assert tca9555._io_ports[1].config.uint == int('0x08',0)

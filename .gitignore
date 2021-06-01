@@ -1,7 +1,14 @@
+# sublime text 3
+*.sublime-workspace
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# test data
+test_data/
+test_results/
 
 # C extensions
 *.so

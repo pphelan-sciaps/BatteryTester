@@ -4,11 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-ft4222 = "*"
-pytest = "*"
-bitstring = "*"
-click = "*"
-transitions = "*"
 
 [dev-packages]
 

@@ -15,7 +15,10 @@ import ft4222   # accessed through I2C, only used here to get device list
 #import click
 
 # internal
-from . import I2C
+from .I2C import I2C
+from .I2C import RegisterMap
+from .I2C import Register
+from .I2C import uint8_to_uint
 
 class TCA9555(object):
     '''Abstraction of TCA9555 I2C gpio expander used on IF board.
@@ -40,17 +43,35 @@ class TCA9555(object):
     OUTPUT_CMD  = 0x2
     CONFIG_CMD  = 0x6
 
-    def __init__(self, address: int = 0x27, i2c: I2C = None):
+    def __init__(
+        self,
+        i2c: I2C = None,
+        address: int = 0x27):
         '''Create new TCA9555 with given I2C address and I2C device'''
-        super(TCA9555, self).__init__()
 
+        self._i2c = i2c;
         if address in self.VALID_ADDRESSES:
             self._address = address
         else:
             self._address = self.VALID_ADDRESSES[-1]
-        self._i2c = i2c;
-        self._io_ports = [RegisterMap(),RegisterMap()]
-        self.hw_init()
+
+        registers = [
+            Register(self._i2c, '0x00', 'r',  1, '0x00'),
+            Register(self._i2c, '0x01', 'r',  1, '0x00'),
+            Register(self._i2c, '0x02', 'rw', 1, '0x00'),
+            Register(self._i2c, '0x03', 'rw', 1, '0x00'),
+            Register(self._i2c, '0x04', 'rw', 1, '0x00'),
+            Register(self._i2c, '0x05', 'rw', 1, '0x00'),
+            Register(self._i2c, '0x06', 'rw', 1, '0xDA'),
+            Register(self._i2c, '0x07', 'rw', 1, '0xF0')
+        ]
+
+        self._reg_map = RegisterMap(
+            i2c = self._i2c,
+            address = self._address,
+            registers = registers)
+
+        self._reg_map.write_all()
 
     # API
     @property
@@ -66,15 +87,9 @@ class TCA9555(object):
 
     def hw_init(self) -> None:
         '''Set hardware registers to default values'''
-        for port_num, io_port in enumerate(self._io_ports):
-            self.write_output_port_word(
-                port=port_num,
-                word=io_port.output_port.uint)
-            self.write_config_word(
-                port=port_num,
-                word=io_port.config.uint)
+        pass
 
-    def read_input_port_bit(self, port: int, bit: int) -> bool:
+    def read_input_port_bit(self, port: int, bit_num: int) -> bool:
         '''Read the value of a pin on an input port
 
         :param port: io port number
@@ -85,16 +100,25 @@ class TCA9555(object):
         :return input_bit: input pin value
         :rtype  input_bit: bool
         '''
-        if self._i2c is not None:    # write to hardware
-            pass
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x00'
+            elif port == 1:
+                reg_addr = '0x01'
+            else:
+                raise TCA9555Error('invalid port number')
+
+            word = self._reg_map[reg_addr].value_uint
+            mask = 2 ** bit_num
+            input_bit = bool(word & mask)
         else:               # offline testing
             try:
-                input_bit = self._io_ports[port].input[bit] = 1
+                input_bit = self._reg_map = 1
             except IndexError as e:
                 raise e
                 input_bit = None
 
-            return input_bit
+        return input_bit
 
     def read_input_port_word(self, port: int) -> BitArray:
         '''Read the value of the input register on an input port
@@ -105,19 +129,56 @@ class TCA9555(object):
         :return input_bit: input register value
         :rtype  input_bit: class.`BitArray`
         '''
-        if self._i2c is not None:    # write to hardware
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x00'
+            elif port == 1:
+                reg_addr = '0x01'
+            else:
+                raise TCA9555Error('invalid port number')
+
+            input_word = self._reg_map[reg_addr].value_uint
+        else:               # offline testing
+            # try:
+            #     input_bit = self._io_ports[port].input[bit] = 1
+            # except IndexError as e:
+            #     raise e
+            #     input_bit = None
             pass
+        return input_word    
+
+    def read_output_port_bit(self, port: int, bit_num: int) -> bool:
+        '''Read the value of a pin on an output port
+
+        :param port: io port number
+        :type  port: int
+        :param bit: bit number to read
+        :type  bit: int
+
+        :return input_bit: input pin value
+        :rtype  input_bit: bool
+        '''
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x02'
+            elif port == 1:
+                reg_addr = '0x03'
+            else:
+                raise TCA9555Error('invalid port number')
+
+            word = self._reg_map[reg_addr].value_uint
+            mask = 2 ** bit_num
+            input_bit = bool(word & mask)
         else:               # offline testing
             try:
-                input_bit = self._io_ports[port].input[bit] = 1
+                input_bit = self._reg_map = 1
             except IndexError as e:
                 raise e
                 input_bit = None
 
-            return input_bit    
+        return input_bit
 
-
-    def set_output_port_bit(self, port: int, bit: int) -> None:
+    def set_output_port_bit(self, port: int, bit_num: int) -> None:
         '''Set the value of a pin on an output port high
 
         :param port: io port number
@@ -125,122 +186,168 @@ class TCA9555(object):
         :param bit: bit number to set
         :type  bit: int
         '''
-        try:
-            idx = self.REG_WIDTH - 1 - bit
-            self._io_ports[port].output_port.set(True,idx)
-        except IndexError as e:
-            raise e
-            return
-
-        if self._i2c is not None:   # write to hardware
-            addr 
-            self._i2c.write()
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x02'
+            elif port == 1:
+                reg_addr = '0x03'
+            else:
+                raise TCA9555Error('invalid port number')
+            
+            try:
+                print('get')
+                word = self._reg_map[reg_addr].value_uint
+                mask = 2 ** bit_num
+                word |= mask
+                print('set')
+                self._reg_map[reg_addr].value = word
+            except IndexError as e:
+                raise e
+                return
 
     def clear_output_port_bit(self, port: int, bit: int) -> None:
-        try:
-            idx = self.REG_WIDTH - 1 - bit
-            self._io_ports[port].output_port.set(False,idx)
-        except IndexError as e:
-            raise e
-            return
+        # try:
+        #     idx = self.REG_WIDTH - 1 - bit
+        #     self._io_ports[port].output_port.set(False,idx)
+        # except IndexError as e:
+        #     raise e
+        #     return
 
-        if self._i2c is not None:   # write to hardware
-            pass
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x02'
+            elif port == 1:
+                reg_addr = '0x03'
+            else:
+                raise TCA9555Error('invalid port number')
+            
+            try:
+                word = self._reg_map[reg_addr].value_uint
+                mask = (2 ** bit_num) ^ 0xFF
+                word &= mask
+                self._reg_map[reg_addr].value = f'{word:.02x}'
+            except IndexError as e:
+                raise e
+                return
 
     def write_output_port_word(self, port: int, word: int) -> None:
-        print(word)
-        print(f'{word:02x}')
-        try:
-            self._io_ports[port].output_port = BitArray(hex=f'{word:02x}')
-        except IndexError as e:
-            raise e
-            print('invalid port number')
-            return
-        except TypeError as e:
-            raise e
-            return
-        except ValueError as e:
-            raise e
-            return
-        except KeyError as e:
-            raise e
-            return
+        # try:
+        #     self._io_ports[port].output_port = BitArray(hex=f'{word:02x}')
+        # except IndexError as e:
+        #     raise e
+        #     print('invalid port number')
+        #     return
+        # except TypeError as e:
+        #     raise e
+        #     return
+        # except ValueError as e:
+        #     raise e
+        #     return
+        # except KeyError as e:
+        #     raise e
+        #     return
 
-        if self._i2c is not None:   # write to hardware
-            addr = self._address
-            cmd  = self.OUTPUT_CMD + port
-            word = self._io_ports[port].output_port.uint
-            data = bytearray((cmd,word))
-            stat = self._i2c.write(addr,data)
-            print(stat)
-        else:
-            print('running in offline mode')
+        # if self._i2c is not None:   # write to hardware
+        #     addr = self._address
+        #     cmd  = self.OUTPUT_CMD + port
+        #     word = self._io_ports[port].output_port.uint
+        #     data = bytearray((cmd,word))
+        #     stat = self._i2c.write(addr,data)
+        # else:
+        #     print('running in offline mode')
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x02'
+            elif port == 1:
+                reg_addr = '0x03'
+            else:
+                raise TCA9555Error('invalid port number')
+            
+            try:
+                self._reg_map[reg_addr].value = f'{word:.02x}'
+            except IndexError as e:
+                raise e
+                return
 
 
-    def set_config_bit(self, port: int, bit: int) -> None:
-        try:
-            idx = self.REG_WIDTH - 1 - bit
-            self._io_ports[port].config.set(True,idx)
-        except IndexError as e:
-            raise e
-            return
 
-        print(self._io_ports[0].config)
-        print(self._io_ports[1].config)
+    # def set_config_bit(self, port: int, bit: int) -> None:
+    #     try:
+    #         idx = self.REG_WIDTH - 1 - bit
+    #         self._io_ports[port].config.set(True,idx)
+    #     except IndexError as e:
+    #         raise e
+    #         return
 
-        if self._i2c is not None:   # write to hardware
-            pass
 
-    def clear_config_bit(self, port: int, bit: int) -> None:
-        try:
-            idx = self.REG_WIDTH - 1 - bit
-            self._io_ports[port].config.set(False,idx)
-        except IndexError as e:
-            raise e
-            return
+    #     if self._i2c is not None:   # write to hardware
+    #         pass
 
-        if self._i2c is not None:   # write to hardware
+    # def clear_config_bit(self, port: int, bit: int) -> None:
+    #     try:
+    #         idx = self.REG_WIDTH - 1 - bit
+    #         self._io_ports[port].config.set(False,idx)
+    #     except IndexError as e:
+    #         raise e
+    #         return
+
+    #     if self._i2c is not None:   # write to hardware
             pass
 
     def write_config_word(self, port: int, word: int) -> None:
-        try:
-            self._io_ports[port].config = BitArray(hex=f'{word:02x}')
-        except IndexError as e:
-            raise e
-            return
-        except TypeError as e:
-            raise e
-            return
-        except ValueError as e:
-            raise e
-            return
-        except KeyError as e:
-            raise e
-            return
+        # try:
+        #     self._io_ports[port].config = BitArray(hex=f'{word:02x}')
+        # except IndexError as e:
+        #     raise e
+        #     return
+        # except TypeError as e:
+        #     raise e
+        #     return
+        # except ValueError as e:
+        #     raise e
+        #     return
+        # except KeyError as e:
+        #     raise e
+        #     return
 
-        if self._i2c is not None:   # write to hardware
-            addr = self._address
-            cmd  = self.CONFIG_CMD + port
-            word = self._io_ports[port].config.uint
-            data = bytearray((cmd,word))
-            stat = self._i2c.write(addr,data)
-            print(stat)
-        else:
-            print('running in offline mode')
+        # if self._i2c is not None:   # write to hardware
+        #     addr = self._address
+        #     cmd  = self.CONFIG_CMD + port
+        #     word = self._io_ports[port].config.uint
+        #     data = bytearray((cmd,word))
+        #     stat = self._i2c.write(addr,data)
+        # else:
+        #     print('running in offline mode')
+        if self._i2c:    # write to hardware
+            if port == 0:
+                reg_addr = '0x06'
+            elif port == 1:
+                reg_addr = '0x07'
+            else:
+                raise TCA9555Error('invalid port number')
+            
+            try:
+                self._reg_map[reg_addr].value = f'{word:.02x}'
+            except IndexError as e:
+                raise e
+                return
 
 # helper classes
 
 class ConfigError(Exception):
     pass
 
-class RegisterMap(object):
-    """docstring for RegisterMap"""
+class TCA9555Error(Exception):
+    pass
 
-    def __init__(self):
-        self.input_port    = BitArray('0x00',8)
-        self.output_port   = BitArray('0xff',8)
-        self.polarity      = BitArray('0x00',8)
-        self.config        = BitArray('0xff',8)
+# class RegisterMap(object):
+#     """docstring for RegisterMap"""
+
+#     def __init__(self):
+#         self.input_port    = BitArray('0x00',8)
+#         self.output_port   = BitArray('0xff',8)
+#         self.polarity      = BitArray('0x00',8)
+#         self.config        = BitArray('0xff',8)
 
 class DemoApp(Cmd):
     # shell settings
@@ -254,7 +361,7 @@ class DemoApp(Cmd):
         '''
         num_devices = ft4222.createDeviceInfoList()
         devices = [ft4222.getDeviceInfoDetail(i) for i in range(num_devices)
-        if ft4222.getDeviceInfoDetail(i).get('serial') == b'A']
+            if ft4222.getDeviceInfoDetail(i).get('serial') == b'A']
         self.device_locations = [device.get('location') for device in devices]
 
         print(self.device_locations)

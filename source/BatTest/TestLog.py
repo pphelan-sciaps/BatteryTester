@@ -10,7 +10,7 @@ import csv
 # internal packages
 
 class TestLog(object):
-    def __init__(self, fname: str = None):
+    def __init__(self, fname: str = None, ):
         self._results = []
 
         if fname:
@@ -61,6 +61,7 @@ class TestLog(object):
             ])
 
     def csv_result_write(self, result: Result = None, newline=""):
+
         with open(self._fname, 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(f'{result}'.split(', '))
@@ -96,7 +97,7 @@ class Result(object):
         f'{self.voltage_mV:.0f}, ' + \
         f'{self.current_mA:.0f}, ' + \
         f'{self.charge_mAh:.0f}, ' + \
-        f'{self.charge_level:.0f}, ' + \
+        f'{self.charge_level:.1f}, ' + \
         f'{self.temp_C:.0f}'
 
         return string

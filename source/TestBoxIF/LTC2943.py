@@ -92,7 +92,7 @@ class LTC2943(object):
     # 0x01
     @property
     def config_reg(self):
-        return self._reg_map['0x01'].value
+        return self._reg_map.read_reg(0x01)
 
     @config_reg.setter
     def config_reg(self, word: int):
@@ -164,7 +164,7 @@ class LTC2943(object):
         return current
 
     def control_init(self):
-        self._reg_map.write_reg(0x01,0xDC)
+        self._reg_map.write_reg(0x01,0b11011010)
         _ = self.voltage_mV
 
     def charge_init(self):

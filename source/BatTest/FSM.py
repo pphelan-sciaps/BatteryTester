@@ -10,6 +10,7 @@ from source.BatTest.TestLog import TestLog
 # globals
 
 test_log = None
+charge_setpoint = None
 
 class FSM(object):
     """docstring for FSM"""
@@ -28,17 +29,19 @@ class FSM(object):
         # initialize results log
 
         # initialize control variables
-        self._charge_setpoint = 100
         self._quickcharge = False
         self._flag = None
 
     # API
-    def start(self, charge_setpoint: int, quickcharge: bool):
+    def start(self, charge_sp: int, quickcharge: bool):
         global test_log
         test_log = TestLog()
-        self._charge_setpoint = charge_setpoint
-        self._quickcharge = quickcharge
-        self._flag = Flags.START
+        global charge_setpoint
+        charge_setpoint = charge_sp
+        if quickcharge:
+            self._flag = Flags.START_QUICKCHARGE
+        else:
+            self._flag = Flags.START_TEST
 
     def stop(self):
         self._flag = Flags.STOP
@@ -62,7 +65,8 @@ class States(Enum):
     POSTTEST = 'sPOSTTEST'
 
 class Flags(Enum):
-    START = 'start'
+    START_TEST = 'start_test'
+    START_QUICKCHARGE = 'start_quickcharge'
     STOP = 'stop'
     CLEAR = 'clear'
 
@@ -145,14 +149,21 @@ class IdleState(State):
 
     def next(self, flag = None):
         # print(self._test_box_half)
-        if flag == Flags.START:
+        if flag == Flags.START_TEST:
             if self._test_box_half.gas_gauge.voltage_mV > 10000:
                 print('IDLE -> PRETEST')
                 return PretestState(self._test_box_half)
             else:
                 print('IDLE -> PRECHARGE')
                 return PrechargeState(self._test_box_half)
-        
+        elif flag == Flags.START_QUICKCHARGE:
+            global charge_setpoint
+            if self._test_box_half.gas_gauge.charge_level < charge_setpoint:
+                print('IDLE -> QUICKCHARGE')
+                return QuickchargeState(self._test_box_half)
+            else:
+                print('IDLE -> QUICKDISCHARGE')
+                return QuickdischargeState(self._test_box_half)
         # default
         return self
 
@@ -232,7 +243,7 @@ class ChargeTestState(LogState):
             print('CHARGE_TEST stopped')
             self._test_box_half.gpio.charge_enable = False
             return IdleState(self._test_box_half)
-        if self._test_box_half.gas_gauge.voltage_mV > 12500:
+        if self._test_box_half.gas_gauge.charge_level >= 100:
             print('CHARGE_TEST -> DISCHARGE_TEST')
             self._test_box_half.gpio.charge_enable = False
             return DischargeTestState(self._test_box_half)
@@ -258,6 +269,53 @@ class DischargeTestState(LogState):
             print('DISCHARGE_TEST -> POSTTEST')
             self._test_box_half.gpio.discharge_enable = False
             return PostTestState(self._test_box_half)
+        return self
+
+class QuickchargeState(LogState):
+    def __init__(
+        self,
+        test_box_half: TestBoxHalf = None,
+    ):
+        super().__init__(test_box_half)
+        self._test_box_half.gas_gauge.control_init()
+        self._test_box_half.gpio.charge_enable = True
+
+    def next(self, flag = None):
+        global charge_setpoint
+
+        if flag == Flags.STOP:
+            print('QUICKCHARGE stopped')
+            self._test_box_half.gpio.charge_enable = False
+            return IdleState(self._test_box_half)
+        elif self._test_box_half.gas_gauge.charge_level >= charge_setpoint:
+            print('QUICKCHARGE done')
+            self._test_box_half.gpio.charge_enable = False
+            return IdleState(self._test_box_half)
+
+        return self
+
+
+class QuickdischargeState(LogState):
+    def __init__(
+        self,
+        test_box_half: TestBoxHalf = None,
+    ):
+        super().__init__(test_box_half)
+        self._test_box_half.gas_gauge.control_init()
+        self._test_box_half.gpio.discharge_enable = True
+
+    def next(self, flag = None):
+        global charge_setpoint
+
+        if flag == Flags.STOP:
+            print('QUICKCHARGE stopped')
+            self._test_box_half.gpio.discharge_enable = False
+            return IdleState(self._test_box_half)
+        elif self._test_box_half.gas_gauge.charge_level <= charge_setpoint:
+            print('QUICKCHARGE done')
+            self._test_box_half.gpio.discharge_enable = False
+            return IdleState(self._test_box_half)
+
         return self
 
 class PostTestState(State):

@@ -33,8 +33,19 @@ class BatShell(Cmd):
     def do_start_test(self,args):
         self._test_man.bat_test(0).start_test()
 
+    def do_start_quickcharge(self,args):
+        args_list = args.split()
+        try:
+            charge_setpoint = int(args_list[0],0)
+            self._test_man.bat_test(0).start_quickcharge(charge_setpoint)
+        except ValueError:
+            print('Invalid charge setpoint')
+
     def do_stop_test(self,args):
         self._test_man.bat_test(0).stop()
+
+    def do_import_test(self,args):
+        pass
 
     def do_process(self,args):
         self._test_man.bat_test(0).process()
@@ -140,11 +151,16 @@ class BatShell(Cmd):
     # gas gauge
     def do_read_gas_gauge_status(self,args):
         if self._box:
-            print(self._box.gas_gauge.status_reg)
+            print(hex(self._box.gas_gauge.status_reg))
+        else:
+            print('no box connected')
 
     def do_read_gas_gauge_config(self,args):
         if self._box:
-            print(self._box.gas_gauge.config_reg)
+            config_reg = self._box.gas_gauge.config_reg
+            print(f'{hex(config_reg)} - {bin(config_reg)}')
+        else:
+            print('no box connected')
 
     def do_write_gas_gauge_config(self,args):
         if self._box:

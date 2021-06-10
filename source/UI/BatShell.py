@@ -1,4 +1,6 @@
 # standard library
+import curses
+import curses.textpad
 from cmd import Cmd
 import asyncio
 
@@ -13,44 +15,81 @@ from source.TestBoxIF.GPIO import GPIOError
 class BatShell(Cmd):
     # shell settingsa
     intro = '\nBatMan demo pp.  Type help of ? to list commands.\n'
-    prompt = '(BatShell )'
+    prompt = '(BatShell ) '
 
     def do_EOF(self,args):
         print('exiting')
         return True
 
     # commands
-    def do_list_boxes(self,args):
-        print('Box USB locations:')
-        print(self._test_man.device_locations)
+    def do_list_boxes(self,args) -> list:
+        # print('Box USB locations:')
+        # locs = self._test_man.device_locations
+        # print(self._test_man.device_locations)
+        return self._test_man.device_locations
+
 
     def do_open(self,args):
         args_list = args.split()
         location_idx = int(args_list[0],0)
         self._test_man.open_connection(location_idx)
         self._box = self._test_man.bat_test(0)._if_board
+        # self.onecmd('read_gas_gauge')
+
+    def do_close(self,args):
+        if self._box:
+            self._test_man.close_connection()
+            self._box = None
+
+    def do_box_id(self,args):
+        if self._box:
+            return self._box.usb_id
 
     def do_start_test(self,args):
-        self._test_man.bat_test(0).start_test()
+        args_list = args.split()
+        if '-s' in args_list:
+            charge_setpoint = 10
+            short_test = True
+        else:
+            charge_setpoint = 35
+            short_test = False
 
-    def do_start_quickcharge(self,args):
+        if self._box:
+            self._test_man.bat_test(0).start_test(charge_setpoint, short_test)
+
+    def do_quickcharge(self,args):
         args_list = args.split()
         try:
             charge_setpoint = int(args_list[0],0)
             self._test_man.bat_test(0).start_quickcharge(charge_setpoint)
         except ValueError:
             print('Invalid charge setpoint')
+        except:
+            pass
 
-    def do_stop_test(self,args):
-        self._test_man.bat_test(0).stop()
+    def do_stop(self,args):
+        if self._box:
+            self._test_man.bat_test(0).stop()
 
     def do_import_test(self,args):
         pass
 
-    def do_process(self,args):
-        self._test_man.bat_test(0).process()
+    def do_step(self,args):
+        if self._test_man:
+            self._test_man.step()
 
     # test running
+    def do_test_state(self,args):
+        if self._box:
+            return self._test_man.bat_test(0).state_name
+
+    def do_test_time(self,args):
+        if self._box:
+            return self._test_man.bat_test(0).test_time
+
+    def do_test_done(self,args):
+        if self._box:
+            return self._test_man.bat_test(0).done
 
     # GPIO
     def do_battery_present(self,args):
@@ -171,17 +210,22 @@ class BatShell(Cmd):
     def do_read_gas_gauge(self,args):
         if self._box:
             if self._box.battery_present:
-                gas_gauge_data = self._box.gas_gauge.get_all()
-                if None in gas_gauge_data.values():
-                    print('unable to communicate with battery')
-                else:
-                    print(f'{gas_gauge_data["timestamp"]}')
-                    print(f'charge: {gas_gauge_data["charge_mAh"]:.0f} mAh ' \
-                        f'({gas_gauge_data["charge_level"]:.1f}%)')
-                    print(f'voltage: {self._box.gas_gauge.voltage_mV:.0f} mV')
-                    print(f'current: {self._box.gas_gauge.current_mA:.0f} mA')
+                return self._box.gas_gauge.get_all()
+
+
+                # gas_gauge_data = self._box.gas_gauge.get_all()
+                # if None in gas_gauge_data.values():
+                #     print('unable to communicate with battery')
+                # else:
+                #     print(f'{gas_gauge_data["timestamp"]}')
+                #     print(f'charge: {gas_gauge_data["charge_mAh"]:.0f} mAh ' \
+                #         f'({gas_gauge_data["charge_level"]:.1f}%)')
+                #     print(f'voltage: {self._box.gas_gauge.voltage_mV:.0f} mV')
+                #     print(f'current: {self._box.gas_gauge.current_mA:.0f} mA')
             else:
-                print('battery not present')
+                pass
+                # print('battery not present')
+                
 
     def do_exit(self,args):
         return True
@@ -189,10 +233,11 @@ class BatShell(Cmd):
     # DMMs
 
     # helper methods
-    def __init__(self):
+    def __init__(self, standalone = False):
         super(BatShell, self).__init__()
-        self._test_man = TestManager()
+        self._test_man = TestManager(standalone)
         self._box = None
+        self._test_log = None
 
     def cmdloop(self, intro=None):
         print(self.intro)
@@ -206,4 +251,5 @@ class BatShell(Cmd):
 
 # cli app for testing
 if __name__ == '__main__':
-    BatShell().cmdloop()
+
+    shell = BatShell().cmdloop(standalone = True)

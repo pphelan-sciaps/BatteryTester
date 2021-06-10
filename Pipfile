@@ -9,6 +9,7 @@ pytest = "*"
 bitstring = "*"
 click = "*"
 transitions = "*"
+windows-curses = "*"
 
 [dev-packages]
 

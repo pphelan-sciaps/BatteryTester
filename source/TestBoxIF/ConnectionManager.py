@@ -30,19 +30,17 @@ class ConnectionManager(object):
 
 
     def open_connection(self, idx: int) -> ft4222.FT4222:
-        if not self._device_locations:
-            _ = self.device_locations
-
+        locations = self.device_locations
+        print(locations)
         
         try:
-            location = self._device_locations[idx]
+            location = locations[idx]
             ft4222_ic = ft4222.openByLocation(location)
+            return ft4222_ic
         except IndexError as e:
-            raise e(f'Invalid device location index')
+            print(f'Invalid device location index')
         except ft4222.FT2XXDeviceError as e:
-            raise e(f'Unable to open device at location {location}')
-
-        return ft4222_ic
+            print(f'Unable to open device at location {location}')
 
 class DemoApp(Cmd):
     """docstring for DemoApp"""

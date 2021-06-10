@@ -232,6 +232,10 @@ class I2C(object):
         self._ic = ic
         self.hw_init(speed_kbps)
 
+    def __del__(self):
+        if self._ic:
+            self._ic.close()
+
     def __repr__(self):
         return 'I2C object'
 

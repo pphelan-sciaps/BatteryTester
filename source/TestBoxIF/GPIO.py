@@ -40,13 +40,27 @@ class GPIO(object):
             i2c = self._i2c,
             address = self._address,
             registers = registers)
-
-        self._reg_map.write_all()
+        try:
+            self._reg_map.write_all()
+        except:
+            print('unable to write registers')
 
     def __del__(self):
-        self.charge_enable = False
-        self.discharge_enable = False
-    
+        #disable all outputs
+        outputs = [
+            self.charge_enable,
+            self.discharge_enable,
+            self.led_error_enable,
+            self.led_done_enable,
+            self.led_run_enable
+        ]
+        
+        for output in outputs:
+            try:
+                output = False
+            except:
+                pass
+
     # API
     @property
     def address(self):
@@ -156,7 +170,7 @@ class GPIO(object):
     #         self.tca9555.clear_output_port_bit(port=0,bit=2)    
     
     @property
-    def led_run_enable(self,enable: int):
+    def led_run_enable(self):
         '''output for enabling run indication led
         '''
         return self._reg_map.read_bit(reg_addr=0x3,bit_num=2)
@@ -182,6 +196,7 @@ class GPIO(object):
     @led_error_enable.setter
     def led_error_enable(self,enable):
         self._reg_map.write_bit(reg_addr=0x3,bit_num=1,value=enable)
-    
+
+
 class GPIOError(Exception):
     pass

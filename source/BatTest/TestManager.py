@@ -13,23 +13,33 @@ from source.TestBoxIF.TestBoxHalf import TestBoxHalf
 
 class TestManager(object):
     """docstring for TestManager"""
-    def __init__(self):
+    def __init__(self, threaded = False):
         self._bat_tests = []
         self._conn_man = ConnectionManager()
+        self._device_locations = []
+        self._threaded = threaded
 
         # start IO loop thread
-        self._event = threading.Event()
-        t = threading.Thread(target=self.step_thread, daemon=True)
-        t.start()
+        if self._threaded:
+            self._event = threading.Event()
+            t = threading.Thread(target=self.step_thread, daemon=True)
+            t.start()
 
     @property
     def device_locations(self):
-        return self._conn_man.device_locations
+        self._device_locations = self._conn_man.device_locations
+        return self._device_locations
 
     def open_connection(self, idx: int):
+        box_id = self.device_locations[idx]
         i2c = I2C(self._conn_man.open_connection(idx))
-        bat_test = BatteryTest(i2c)
+        bat_test = BatteryTest(i2c, box_id)
         self._bat_tests.append(bat_test)
+
+    def close_connection(self):
+        if self._bat_tests:
+            self._bat_tests[0].stop()
+            del self._bat_tests[0]
 
     def bat_test(self, test_num: int = 0):
         try:
@@ -37,13 +47,16 @@ class TestManager(object):
         except IndexError:
             print('Invalid box index')
 
+    def step(self):
+        for test in self._bat_tests:
+            try:
+                test.process()
+            except Exception as e:
+                raise e
+
     def step_thread(self):
         while not self._event.isSet():
-            for test in self._bat_tests:
-                try:
-                    test.process()
-                except Exception as e:
-                    raise e
+            self.step()
 
             try:
                 self._event.wait(1)

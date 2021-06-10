@@ -11,7 +11,6 @@ from .I2C import RegisterMap
 from .I2C import Register
 from .I2C import uint8_to_uint
 from .ConnectionManager import ConnectionManager
-from source.BatTest.TestLog import Result
 
 class LTC2943(object):
     # constants
@@ -51,7 +50,6 @@ class LTC2943(object):
             i2c = self._i2c,
             address = self._address,
             registers=registers)
-
         
 
     # API
@@ -131,12 +129,14 @@ class LTC2943(object):
     @property
     def charge_mAh(self):
         charge = self.charge
-        return charge['mAh']
+        if charge:
+            return charge['mAh']
 
     @property
     def charge_level(self):
         charge = self.charge
-        return charge['level']
+        if charge:
+            return charge['level']
     
     @property
     def voltage_mV(self):
@@ -173,21 +173,22 @@ class LTC2943(object):
 
     def get_all(self) -> dict:
         result = {
-            'timestamp'     : datetime.now().strftime('%H:%M:%S'),
-            'voltage_mV'    : self.voltage_mV,
-            'current_mA'    : self.current_mA,
-            'charge_mAh'    : self.charge_mAh,
-            'charge_level'  : self.charge_level,
-            'temp_C'        : 0
+            'bat_timestamp'     : datetime.now(),
+            'bat_voltage_mV'    : self.voltage_mV,
+            'bat_current_mA'    : self.current_mA,
+            'bat_charge_mAh'    : self.charge_mAh,
+            'bat_charge_level'  : self.charge_level,
+            'bat_temp_C'        : 0
         }
 
         return result
 
     def __str__(self):
         if self.charge:
-            return f'charge: {self.charge["mAh"]:.0f} mAh '\
-                f'({self.charge["level"]:.1f}%) '\
-                f'voltage: {self.voltage_mV:.0f} mV '\
+            return f'{datetime.now().strftime("%H:%M:%S")}\n'\
+                f'charge: {self.charge["mAh"]:.0f} mAh '\
+                    f'({self.charge["level"]:.1f}%)\n'\
+                f'voltage: {self.voltage_mV:.0f} mV\n'\
                 f'current: {self.current_mA:.0f} mA'
         else:
             return 'no battery connected'

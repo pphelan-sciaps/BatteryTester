@@ -25,7 +25,7 @@ class BatShell(Cmd):
     def do_list_boxes(self,args) -> list:
         # print('Box USB locations:')
         # locs = self._test_man.device_locations
-        # print(self._test_man.device_locations)
+        print(self._test_man.device_locations)
         return self._test_man.device_locations
 
 
@@ -252,4 +252,4 @@ class BatShell(Cmd):
 # cli app for testing
 if __name__ == '__main__':
 
-    shell = BatShell().cmdloop(standalone = True)
+    shell = BatShell(standalone = True).cmdloop()

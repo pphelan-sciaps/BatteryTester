@@ -110,7 +110,7 @@ class TUI():
             return False
 
         elif key_int == ord('o'):   # open box
-            box_idx = self.get_prompt('enter box index: ')
+            box_idx = self.get_prompt('enter box number: ')
             self.shell.onecmd(f'open {box_idx}')
 
             box_id = self.shell.onecmd('box_id')
@@ -189,7 +189,7 @@ class TUI():
 
 
     def update_conns(self):
-        self.boxes = self.shell.onecmd('list_boxes')
+        _ , self.boxes = self.shell.onecmd('list_boxes')
         self.draw_conn_win()
 
 

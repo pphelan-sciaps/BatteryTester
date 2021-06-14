@@ -17,6 +17,7 @@ class TestManager(object):
         self._bat_tests = []
         self._conn_man = ConnectionManager()
         self._device_locations = []
+        self._device_names = []
         self._threaded = threaded
 
         # start IO loop thread
@@ -30,11 +31,19 @@ class TestManager(object):
         self._device_locations = self._conn_man.device_locations
         return self._device_locations
 
-    def open_connection(self, idx: int):
-        box_id = self.device_locations[idx]
-        i2c = I2C(self._conn_man.open_connection(idx))
-        bat_test = BatteryTest(i2c, box_id)
-        self._bat_tests.append(bat_test)
+    @property
+    def device_names(self):
+        self._device_names = self._conn_man.device_names
+        return self._device_names
+
+    def open_connection(self, location_str = None):
+        i2c = self._conn_man.open_connection(location_str)
+        if i2c:
+            bat_test = BatteryTest(i2c)
+            self._bat_tests.append(bat_test)
+            return True
+        else:
+            return False
 
     def close_connection(self):
         if self._bat_tests:

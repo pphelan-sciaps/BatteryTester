@@ -25,15 +25,26 @@ class BatShell(Cmd):
     def do_list_boxes(self,args) -> list:
         # print('Box USB locations:')
         # locs = self._test_man.device_locations
-        print(self._test_man.device_locations)
-        return self._test_man.device_locations
+        locs = self._test_man.device_locations
+        names = self._test_man.device_names
+
+        # print(locs)
+        # print(names)
+        return locs,names
 
 
     def do_open(self,args):
+        idx = None
+        name = None
+
         args_list = args.split()
-        location_idx = int(args_list[0],0)
-        self._test_man.open_connection(location_idx)
-        self._box = self._test_man.bat_test(0)._if_board
+        location_str = args_list[0]
+
+        opened = self._test_man.open_connection(location_str)
+        print(opened)
+        if opened:
+            self._box = self._test_man.bat_test(0)._if_board
+        return opened
         # self.onecmd('read_gas_gauge')
 
     def do_close(self,args):
@@ -248,6 +259,10 @@ class BatShell(Cmd):
             except KeyboardInterrupt:
                 print("^C")
                 self.onecmd('stop_test')
+
+    def postcmd(self, stop, line):
+        return line.lower() == 'exit'
+
 
 # cli app for testing
 if __name__ == '__main__':

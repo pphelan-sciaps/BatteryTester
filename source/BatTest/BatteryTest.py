@@ -17,7 +17,7 @@ class BatteryTest(object):
 
         self._i2c = i2c
 
-        self._if_board = TestBoxHalf(i2c,usb_id)
+        self._if_board = TestBoxHalf(i2c)
         self._fsm = FSM(self._if_board)
         self._result = None
         self._charge_setpoint = 100

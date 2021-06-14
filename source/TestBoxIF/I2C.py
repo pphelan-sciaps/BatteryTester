@@ -12,7 +12,7 @@ from ft4222.I2CMaster import Flag
 from ft4222.I2CMaster import ControllerStatus
 
 # internal packages for command line tool
-from .ConnectionManager import ConnectionManager
+# from .ConnectionManager import ConnectionManager
 
 class RegisterMap(object):
     """docstring for I2CRegisterMap"""
@@ -228,8 +228,9 @@ class I2C(object):
     FLAG_REPEATED_START = 3
     FLAG_STOP = 4
 
-    def __init__(self, ic: FT4222, speed_kbps: int = 100):
+    def __init__(self, ic: FT4222, name: str = None, speed_kbps: int = 100):
         self._ic = ic
+        self._name = name
         self.hw_init(speed_kbps)
 
     def __del__(self):
@@ -261,6 +262,10 @@ class I2C(object):
     @property
     def status(self):
         return self._ic.i2cMaster_GetStatus()
+
+    @property
+    def name(self):
+        return self._name
     
 
 # helper functions
@@ -317,7 +322,7 @@ class DemoApp(Cmd):
     # helper methods
     def __init__(self):
         super(DemoApp, self).__init__()
-        self.conn_man = ConnectionManager()
+        # self.conn_man = ConnectionManager()
         self.i2c = None
 
 # cli app for testing

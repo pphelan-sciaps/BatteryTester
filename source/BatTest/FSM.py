@@ -13,6 +13,7 @@ test_log = None
 charge_setpoint = None
 charge_test_level = None
 
+test_pass = False
 done = False
 
 class FSM(object):
@@ -20,6 +21,7 @@ class FSM(object):
     def __init__(
         self,
         test_box_half: TestBoxHalf = None,
+        box_id: str = ''
     ):
 
         self._test_box_half = test_box_half
@@ -41,6 +43,11 @@ class FSM(object):
         return self._state.__str__()
 
     @property
+    def test_pass(self):
+        global test_pass
+        return test_pass
+
+    @property
     def done(self):
         global done
         return done
@@ -48,8 +55,9 @@ class FSM(object):
     def start(
         self, 
         charge_sp: int,
-        quickcharge: bool,
-        short_test: bool = False
+        quickcharge: bool = False,
+        short_test: bool = False,
+        resume_test: bool = False
     ):
         global test_log
         global charge_setpoint
@@ -64,10 +72,12 @@ class FSM(object):
             if short_test:
                 charge_test_level = 10.1
                 self._flag = Flags.START_SHORT_TEST
+            elif resume_test:
+                charge_test_level = 100
+                self._flag  = Flags.RESUME_TEST
             else:
                 charge_test_level = 100
                 self._flag = Flags.START_TEST
-            test_log = TestLog()
 
     def stop(self):
         self._flag = Flags.STOP
@@ -94,6 +104,7 @@ class Flags(Enum):
     START_TEST = 'start_test'
     START_SHORT_TEST = 'start_short_test'
     START_QUICKCHARGE = 'start_quickcharge'
+    RESUME_TEST = 'resume_test'
     STOP = 'stop'
     CLEAR = 'clear'
 
@@ -168,80 +179,99 @@ class InitialState(State):
 
 class IdleState(State):
     name = States.IDLE.value
+    def __init__(self, test_box_half: TestBoxHalf = None):
+        super().__init__(test_box_half)
+        self._test_box_half.gpio.charge_enable = False
+        self._test_box_half.gpio.discharge_enable = False
+
     def do(self):
-        # print(self.name)
-        # self._test_box_half.gas_gauge.control_init()
-        pass
+        # check for drained battery
+        try:
+            gas_gauge_config = hex(self._test_box_half.gas_gauge.config_reg)
+            if gas_gauge_config == '0x3c':
+                self._test_box_half.gas_gauge.control_init()
+                self._test_box_half.gas_gauge.charge_init()
+        except:
+            pass
 
     def next(self, flag = None):
         # print(self._test_box_half)
-        global done
         if (flag == Flags.START_TEST) or (flag == Flags.START_SHORT_TEST):
-            done = False
-            self._test_box_half.gpio.led_done_enable = False
-
-            if self._test_box_half.gas_gauge.voltage_mV > 10000:
-                print('IDLE -> PRETEST')
-                return PretestState(self._test_box_half)
-            else:
-                print('IDLE -> PRECHARGE')
-                return PrechargeState(self._test_box_half)
+            self.teardown()
+            print('IDLE -> PRETEST')
+            return PretestState(self._test_box_half)
+            
         elif flag == Flags.START_QUICKCHARGE:
             global charge_setpoint
-            done = False
-            self._test_box_half.gpio.led_done_enable = False
-            
+            self.teardown()
+
             if self._test_box_half.gas_gauge.charge_level < charge_setpoint:
                 print('IDLE -> QUICKCHARGE')
                 return QuickchargeState(self._test_box_half)
+
             else:
                 print('IDLE -> QUICKDISCHARGE')
                 return QuickdischargeState(self._test_box_half)
+
+        elif flag == Flags.RESUME_TEST:
+            self.teardown()
+            print('IDLE -> CHARGE_TEST')
+            return ChargeTestState(self._test_box_half)
         # default
         return self
 
+    def teardown(self):
+        global done
+        global test_pass
+        done = False
+        test_pass = False
+        self._test_box_half.gpio.led_done_enable = False
+        self._test_box_half.gpio.led_error_enable = False
+        self._test_box_half.gas_gauge.control_auto()
 
-class PrechargeState(State):
-    name = States.PRECHARGE.value
-    def __init__(
-        self,
-        test_box_half: TestBoxHalf = None,
-    ):
-        super().__init__(test_box_half)
-        self._retries = 3
-        self._test_box_half.gpio.charge_enable = True
-        self._test_box_half.gpio.led_run_enable = True
-        self._test_box_half.gas_gauge.control_init()
 
-    def do(self):
-        gas_gauge = self._test_box_half.gas_gauge.get_all()
-        # print(gas_gauge)
+# class PrechargeState(State):
+#     name = States.PRECHARGE.value
+#     def __init__(
+#         self,
+#         test_box_half: TestBoxHalf = None,
+#     ):
+#         super().__init__(test_box_half)
+#         self._retries = 3
+#         self._test_box_half.gpio.charge_enable = True
+#         self._test_box_half.gpio.led_run_enable = True
+#         self._test_box_half.gas_gauge.control_init()
 
-    def next(self, flag = None):
-        try:
-            voltage_limit = self._test_box_half.gas_gauge.voltage_mV > 10000
-        except TypeError:
-            print('GAS GAUGE COMM ERROR')
-            self._test_box_half.gpio.discharge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
-            return IdleState(self._test_box_half)
+#     def do(self):
+#         gas_gauge = self._test_box_half.gas_gauge.get_all()
+#         # print(gas_gauge)
 
-        if self._retries == 0:
-            if flag == Flags.STOP:
-                print('PRECHARGE stopped')
-                self._test_box_half.gpio.discharge_enable = False
-                self._test_box_half.gpio.led_run_enable = False
-            elif voltage_limit:
-                self._test_box_half.gpio.charge_enable = False
-                print('PRECHARGE -> CHARGE_TEST')
-                return ChargeTestState(self._test_box_half)
-            else:
-                self._test_box_half.gpio.charge_enable = False
-                self._test_box_half.gpio.led_run_enable = False
-                return ErrorState(self._test_box_half,'battery not found')
-        else:
-            self._retries -= 1
-            return self
+#     def next(self, flag = None):
+#         try:
+#             voltage_limit = self._test_box_half.gas_gauge.voltage_mV > 10000
+#         except TypeError:
+#             print('GAS GAUGE COMM ERROR')
+#             self._test_box_half.gpio.discharge_enable = False
+#             self._test_box_half.gpio.led_run_enable = False
+#             return IdleState(self._test_box_half)
+
+#         if self._retries == 0:
+#             if flag == Flags.STOP:
+#                 print('PRECHARGE stopped')
+#                 self._test_box_half.gpio.discharge_enable = False
+#                 self._test_box_half.gpio.led_run_enable = False
+#             elif voltage_limit:
+#                 self._test_box_half.gpio.charge_enable = False
+#                 print('PRECHARGE -> CHARGE_TEST')
+#                 return ChargeTestState(self._test_box_half)
+#             else:
+#                 print('PRECHARGE -> ERROR')
+#                 self._test_box_half.gpio.charge_enable = False
+#                 self._test_box_half.gpio.led_run_enable = False
+#                 return ErrorState(self._test_box_half,'battery not found')
+#         else:
+#             self._retries -= 1
+#             return self
 
 
 class PretestState(State):
@@ -251,6 +281,7 @@ class PretestState(State):
         test_box_half: TestBoxHalf = None,
     ):
         super().__init__(test_box_half)
+        self._test_box_half.gas_gauge.control_auto()
         self._test_box_half.gpio.discharge_enable = True
         self._test_box_half.gpio.led_run_enable = True
     
@@ -262,98 +293,141 @@ class PretestState(State):
 
     def next(self, flag = None):
         try:
-            voltage_limit = self._test_box_half.gas_gauge.voltage_mV < 10000
+            gas_gauge_config = self._test_box_half.gas_gauge.config_reg
+            voltage = self._test_box_half.gas_gauge.voltage_mV
         except TypeError:
             print('GAS GAUGE COMM ERROR')
             self._test_box_half.gpio.discharge_enable = False
             self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
+
+        try:
+            voltage_lim = voltage < 5000
+        except:
+            voltage_lim = True
 
         if flag == Flags.STOP:
             print('PRETEST stopped')
             self._test_box_half.gpio.discharge_enable = False
             self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
-        elif voltage_limit:
+        elif gas_gauge_config == '0x3c' or voltage_lim:    
             print('PRETEST -> CHARGE_TEST')
             self._test_box_half.gpio.discharge_enable = False
+            self._test_box_half.gas_gauge.control_auto()
+            self._test_box_half.gas_gauge.charge_init()
             return ChargeTestState(self._test_box_half)
         return self
 
 class ChargeTestState(LogState):
     name = States.CHARGE_TEST.value
+    time_lim_h = 4
     def __init__(
         self,
         test_box_half: TestBoxHalf = None,
     ):
         super().__init__(test_box_half)
-        self._test_box_half.gas_gauge.control_init()
-        self._test_box_half.gas_gauge.charge_init()
         self._test_box_half.gpio.charge_enable = True
         self._test_box_half.gpio.led_run_enable = True
+
+        global test_log
+        test_log = TestLog(box_id=self._test_box_half.box_id)
 
     def do(self):
         super().do()        
 
     def next(self, flag = None):
         global charge_test_level
+        global test_log
 
         try:
             level_limit = self._test_box_half.gas_gauge.charge_level >= charge_test_level
             # current_limit = abs(self._test_box_half.gas_gauge.current_mA) < 25
         except TypeError:
+            self.teardown()
             print('GAS GAUGE COMM ERROR')
-            self._test_box_half.gpio.charge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
 
         if flag == Flags.STOP:
+            self.teardown()
             print('CHARGE_TEST stopped')
-            self._test_box_half.gpio.charge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
-        if level_limit:
+
+        elif level_limit:
+            self.teardown()
             print('CHARGE_TEST -> DISCHARGE_TEST')
-            self._test_box_half.gpio.charge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return DischargeTestState(self._test_box_half)
+
+        elif test_log.test_time_h() > self.time_lim_h:
+            self.teardown()
+            self._test_box_half.gpio.led_error_enable = True
+            print('CHARGE TEST TIMEOUT')
+            return IdleState(self._test_box_half)
+
         return self
+
+    def teardown(self):
+        self._test_box_half.gpio.charge_enable = False
+        self._test_box_half.gpio.led_run_enable = False
 
 class DischargeTestState(LogState):
     name = States.DISCHARGE_TEST.value
+    time_lim_h = 1
     def __init__(
         self,
         test_box_half: TestBoxHalf = None,
     ):
         super().__init__(test_box_half)
         self._test_box_half.gpio.discharge_enable = True
+        self._current_lim_debounce = 0
+
+        global test_log
+        self._state_start_time = test_log.test_time_h()
 
     def do(self):
         super().do()
         self._test_box_half.gpio.led_run_enable ^= 1  
 
     def next(self, flag = None):
+        global test_log
+
+        current_limit = False
         try:
-            level_limit = self._test_box_half.gas_gauge.charge_level <= charge_setpoint
-            current_limit = abs(self._test_box_half.gas_gauge.current_mA) < 25
+            # level_limit = self._test_box_half.gas_gauge.charge_level <= charge_setpoint
+            if abs(self._test_box_half.gas_gauge.current_mA) < 25:
+                self._current_lim_debounce += 1
+            else:
+                self._current_lim_debounce = 0
+            current_limit = self._current_lim_debounce > 10
+
             discharged = self._test_box_half.gas_gauge.config_reg == 0x3C
         except TypeError:
+            self.teardown()
             print('GAS GAUGE COMM ERROR')
-            self._test_box_half.gpio.discharge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
 
+        state_time = test_log.test_time_h() - self._state_start_time
+
         if flag == Flags.STOP:
+            self.teardown()
             print('DISCHARGE_TEST stopped')
-            self._test_box_half.gpio.dicharge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return IdleState(self._test_box_half)
-        elif level_limit or current_limit or discharged:
+
+        elif current_limit or discharged:
+            self.teardown()
             print('DISCHARGE_TEST -> POSTTEST')
-            self._test_box_half.gpio.discharge_enable = False
-            self._test_box_half.gpio.led_run_enable = False
             return PostTestState(self._test_box_half)
+
+        elif state_time > self.time_lim_h:
+            self.teardown()
+            print('DISCHARGE TEST TIMEOUT')
+            return IdleState(self._test_box_half)
+
         return self
+
+    def teardown(self):
+        self._test_box_half.gpio.discharge_enable = False
+        self._test_box_half.gpio.led_run_enable = False
 
 class QuickchargeState(LogState):
     name = States.QUICKCHARGE.value
@@ -362,7 +436,6 @@ class QuickchargeState(LogState):
         test_box_half: TestBoxHalf = None,
     ):
         super().__init__(test_box_half)
-        self._test_box_half.gas_gauge.control_init()
         self._test_box_half.gpio.charge_enable = True
         self._test_box_half.gpio.led_run_enable = True
 
@@ -439,11 +512,21 @@ class PostTestState(State):
     ):
         super().__init__(test_box_half)
         self._test_box_half.gas_gauge.control_init()
+        self._test_box_half.gas_gauge.charge_init()
         self._test_box_half.gpio.charge_enable = True
 
+        global test_log
+        global test_pass
+        test_pass = test_log.test_pass()
+
     def do(self):
-        gas_gauge = self._test_box_half.gas_gauge.get_all()
+        # gas_gauge = self._test_box_half.gas_gauge.get_all()
         # print(gas_gauge)
+        global test_pass
+        if test_pass:
+            self._test_box_half.gpio.led_done_enable ^= 1
+        else:
+            self._test_box_half.gpio.led_error_enable ^= 1
 
     def next(self, flag = None):
         global charge_setpoint
@@ -454,10 +537,15 @@ class PostTestState(State):
             return IdleState(self._test_box_half)
         if self._test_box_half.gas_gauge.charge_level > charge_setpoint:
             print('TEST DONE')
+            self._test_box_half.gas_gauge.control_init()
             self._test_box_half.gpio.charge_enable = False
-            self._test_box_half.gpio.led_done_enable = True
-            global done
-            done = True
+            
+            global test_pass
+            if test_pass:
+                self._test_box_half.gpio.led_done_enable = True
+            else:
+                self._test_box_half.gpio.led_error_enable = True
+
             return IdleState(self._test_box_half)
         return self
 

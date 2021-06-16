@@ -45,7 +45,11 @@ class ConnectionManager(object):
             for i in range(ft4222.createDeviceInfoList())]
         for device in all_devices:
             serial = device.get('serial',None)
-            port = chr(serial[-1])
+
+            try:
+                port = chr(serial[-1])
+            except IndexError:
+                port = ''
 
             if port == 'A':
                 devices.append(device)

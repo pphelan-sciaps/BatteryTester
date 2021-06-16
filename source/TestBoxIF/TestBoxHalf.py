@@ -18,7 +18,11 @@ class TestBoxHalf(object):
         self._i2c = i2c
         self._gas_gauge = LTC2943(i2c=i2c)
         self._gpio = GPIO(i2c=i2c)
-        self._usb_id = ''
+        self._box_id = self._i2c.name
+
+    @property
+    def box_id(self):
+        return self._box_id
 
     @property
     def gas_gauge(self):

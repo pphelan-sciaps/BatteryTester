@@ -41,7 +41,6 @@ class BatShell(Cmd):
         location_str = args_list[0]
 
         opened = self._test_man.open_connection(location_str)
-        print(opened)
         if opened:
             self._box = self._test_man.bat_test(0)._if_board
         return opened
@@ -67,6 +66,10 @@ class BatShell(Cmd):
 
         if self._box:
             self._test_man.bat_test(0).start_test(charge_setpoint, short_test)
+    
+    def do_resume_test(self,args):
+        if self._box:
+            self._test_man.bat_test(0).resume_test()
 
     def do_quickcharge(self,args):
         args_list = args.split()
@@ -97,6 +100,10 @@ class BatShell(Cmd):
     def do_test_time(self,args):
         if self._box:
             return self._test_man.bat_test(0).test_time
+
+    def do_test_pass(self,args):
+        if self._box:
+            return self._test_man.bat_test(0).test_pass
 
     def do_test_done(self,args):
         if self._box:
@@ -208,9 +215,12 @@ class BatShell(Cmd):
     def do_read_gas_gauge_config(self,args):
         if self._box:
             config_reg = self._box.gas_gauge.config_reg
-            print(f'{hex(config_reg)} - {bin(config_reg)}')
+            # print(f'{hex(config_reg)} tui- {bin(config_reg)}')
+            return config_reg
         else:
-            print('no box connected')
+            pass
+            # print('no box connected')
+
 
     def do_write_gas_gauge_config(self,args):
         if self._box:

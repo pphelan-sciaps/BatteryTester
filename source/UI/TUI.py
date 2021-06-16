@@ -7,6 +7,7 @@ import curses.textpad
 
 # internal packages
 from source.UI.BatShell import BatShell
+from source.BatTest.FSM import States
 
 # constants
 ColorPair = namedtuple('ColorPair', ['idx', 'fg', 'bg'])
@@ -22,9 +23,10 @@ commands = [
     Command('o', ord('o'), 'pen box'),
     Command('c', ord('c'), 'lose box'),
     Command('t', ord('t'), 'est'),
+    Command('r', ord('r'), 'esume'),
     Command('q', ord('q'), 'uickcharge'),
     Command('d', ord('d'), 'emo'),
-    Command('s', ord('s'), 'top'),
+    Command('s', ord('s'), 'top')
     # Command('i', ord('i'), 'mport'),
     # Command('[p]', curses.KEY_STAB, 'command prompt'),
     # Command('[b]', ord('b'), 'exit prompt')
@@ -56,6 +58,8 @@ class TUI():
             'ref_charge_mAh'    : ' N/A ',
             'ref_charge_level'  : ' N/A '
         }
+
+        self.gas_gauge_config = 'N/A'
 
         curses.wrapper(self.curses_main)
 
@@ -142,12 +146,18 @@ class TUI():
             self.shell.onecmd('start_test -s')
             self.prompt_str = PROMPT_STR_DEFAULT + f'running demo'
 
-        elif key_int == ord('t'):   # demo cycle
-            self.shell.onecmd('start_test')
-            self.prompt_str = PROMPT_STR_DEFAULT + f'running demo'
+        elif key_int == ord('t'):   # test cycle
+            if self.shell.onecmd('test_state') == States.IDLE.value:
+                self.shell.onecmd('start_test')
+                self.prompt_str = PROMPT_STR_DEFAULT + f'running test'
+
+        elif key_int == ord('r'):   # resume test
+            if self.shell.onecmd('test_state') == States.IDLE.value:
+                self.shell.onecmd('resume_test')
+                self.prompt_str = PROMPT_STR_DEFAULT + f'resuming test'
         
         elif key_int == ord('s'):   # stop test
-            if self.shell.onecmd('test_state') != 'sIDLE':
+            if self.shell.onecmd('test_state') != States.IDLE.value:
                 prompt_in = self.get_prompt("enter 'y' to stop test: ")
 
                 if prompt_in.lower().strip() == 'y':
@@ -201,26 +211,36 @@ class TUI():
         self.test_status = test_state if test_state else 'N/A'
 
         test_time = self.shell.onecmd('test_time')
+        # print(test_time)
         self.test_time = test_time if test_time else 'N/A'
 
-        if self.shell.onecmd('test_done') and test_state == 'sIDLE':
-            self.prompt_str = PROMPT_STR_DEFAULT + 'done'
+        test_pass = self.shell.onecmd('test_pass')
+
+        if test_state == States.POSTTEST.value:
+            if test_pass:
+                result = 'pass'
+            else:
+                result = 'fail - please review log file'
+            self.prompt_str = PROMPT_STR_DEFAULT + f'test result: {result}'
 
         stats = self.shell.onecmd('read_gas_gauge')
-        if stats:
+        try:
             self.gas_gauge_stats ={
                 'bat_voltage_mV'   : f'{stats["bat_voltage_mV"]:5.0f}',
                 'bat_current_mA'   : f'{stats["bat_current_mA"]:5.0f}',
                 'bat_charge_mAh'   : f'{stats["bat_charge_mAh"]:5.0f}',
                 'bat_charge_level' : f'{stats["bat_charge_level"]:5.1f}'
             }
-        else:
+        except:
             self.gas_gauge_stats = {
                 'bat_voltage_mV'    : 'xxxxx',
                 'bat_current_mA'    : 'xxxxx',
                 'bat_charge_mAh'    : 'xxxxx',
                 'bat_charge_level'  : 'xxx.x'
             }
+
+        gas_gauge_config = self.shell.onecmd('read_gas_gauge_config')
+        self.gas_gauge_config = hex(gas_gauge_config) if gas_gauge_config else 'N/A'
         
         self.draw_stat_win()
 
@@ -269,6 +289,7 @@ class TUI():
         win_str += f'Current (mA)   |  '
         win_str += f'{self.gas_gauge_stats["bat_current_mA"]}  |  '
         win_str += f'{self.ref_stats["ref_current_mA"]}\n'
+        win_str += f'Gas Gauge Config: {self.gas_gauge_config}'
         self.box_win.addstr(0,0,win_str)
         self.box_win.refresh()
 

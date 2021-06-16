@@ -94,7 +94,7 @@ class LTC2943(object):
 
     @config_reg.setter
     def config_reg(self, word: int):
-        self._reg_map['0x01'] = word
+        self._reg_map.write_reg(0x01, word)
 
     # TODO Register indexing
     # @property
@@ -119,12 +119,20 @@ class LTC2943(object):
         try:
             reg_value = uint8_to_uint(msb,lsb)
             q_lsb =  self.Q_SCALE * self._prescaler / self._r_sense_mohm
+            battery_capacity = q_lsb * 0xFFFF
+            charge['reg'] = reg_value
             charge['mAh'] = q_lsb * reg_value 
-            charge['level'] = 100 * charge['mAh']/self.BATTERY_CAPACITY_mAh
+            charge['level'] = 100 * reg_value / 0xFFFF
         except TypeError as e:
             charge = None
         
         return charge
+
+    @property
+    def charge_register(self):
+        charge = self.charge
+        if charge:
+            return charge['reg']
 
     @property
     def charge_mAh(self):
@@ -164,6 +172,10 @@ class LTC2943(object):
         return current
 
     def control_init(self):
+        self._reg_map.write_reg(0x01,0b10011010)
+        _ = self.voltage_mV
+
+    def control_auto(self):
         self._reg_map.write_reg(0x01,0b11011010)
         _ = self.voltage_mV
 

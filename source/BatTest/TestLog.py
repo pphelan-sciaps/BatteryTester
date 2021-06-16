@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 import csv
 import sys
+from collections import deque
 
 # external packages
 
@@ -31,13 +32,51 @@ result_keys = [
     'bat_temp_C'
 ]
 
+prechrg_lims = {
+    'i_min' : 210,
+    'i_max' : 390,
+    'v_min' : 7000,
+    'v_max' : 12267
+}
+
+const_i_lims = {
+    'i_min' : 900,
+    'i_max' : 1200,
+    'v_min' : 12016,
+    'v_max' : 16779
+}
+
+const_v_lims = {
+    'i_min' : 100,
+    'i_max' : 1159,
+    'v_min' : 16121,
+    'v_max' : 16779
+}
+
+dischrg_lims = {
+    'i_min' : -5649,
+    'i_max' : -1928,
+    'v_min' : 7000,
+    'v_max' : 16779
+}
+
+test_lims = [prechrg_lims, const_i_lims, const_v_lims, dischrg_lims]
+
+PRECHRG_END_VFB_THRESH_mV = 1550*235/30  # VFB = Vbat(mV) * 30k/(205k + 30k)
+DISCHRG_I_THRESH_mA = -50
+
 
 class TestLog(object):
-    def __init__(self, fname: str = None, load: bool = False):
+    def __init__(
+        self,
+        fname: str = None,
+        load: bool = False,
+        box_id: str = ''):
         self._results = []
         self._start_datetime = datetime.now()
         self._t_elapsed_ms = 0
 
+        self._box_id = box_id
 
         # test phase markers
         self._prechrg_start_idx = -1
@@ -45,10 +84,12 @@ class TestLog(object):
         self._const_v_start_idx = -1
         self._dischrg_start_idx = -1
 
+
         if fname:
             self._fname = fname
         else:
             self._fname = f'test_results\\battery_test_' \
+                f'box_{self._box_id}_'\
                 f'{self._start_datetime.strftime("%Y-%m-%d_%H-%M-%S")}.csv'
 
         if load:
@@ -90,22 +131,139 @@ class TestLog(object):
             num_cols = len(csv_headers)
 
             reader = csv.reader(file)
-            for row in reader:
-                # find header row
-                if len(row) == num_cols and row != csv_headers:
-                    result = dict(zip(result_keys, row))
-                    self._results.append(result)
+            for str_row in reader:
+                if len(str_row) != len(csv_headers):
+                    continue
+
+                row = []
+                
+                # convert string to values
+                for i,val in enumerate(str_row):
+                    try:
+                        val = float(val)
+                    except:
+                        pass
+                    row.append(val)
+                result = dict(zip(result_keys, row))
+                self._results.append(result)
 
     def test_pass(self):
-        # split test into phases
-        result_prev = {}
-        for result in self._results:
-            current = result.get('bat_current')
-            current_prev = result_prev.get('bat_current', 0)
-            # precharge
+        # find phase boundries
+        current_prev = 0
+
+        i_avg = 0
+        i_avg_samples = 0
+        i_rolling_avg_deque = deque([None] * 10, maxlen=10)
+        const_i_currents_mA = []
+
+        i_discharge_deque = deque([0] * 5, maxlen=5)
+
+        for i, result in enumerate(self._results):
+            if '' in result.values():
+                continue
+
+            global csv_headers
+            if i < len(csv_headers):
+                continue
+
+            current = result.get('bat_current_mA', 0)
+            voltage = result.get('bat_voltage_mV', 0)
+            charge  = result.get('charge_level', 0)
+
+            if self._prechrg_start_idx < 0:
+                if current > 0 and current_prev < 0:
+                    self._prechrg_start_idx = i
+                    print(f'prechrg start {i}')
+                current_prev = current
+
+            # start of constant current
+            if voltage > PRECHRG_END_VFB_THRESH_mV and self._const_i_start_idx < 0:
+                self._const_i_start_idx = i
+                print(f'const i start {i}')
+
+            # start of constant voltage
+            if self._const_i_start_idx > 0 and self._const_v_start_idx < 0:
+                # find average current
+                i_avg = (i_avg_samples * i_avg + current)/(i_avg_samples + 1)                
+                i_avg_samples += 1
+
+                # rolling average current
+                try:
+                    i_rolling_avg_deque.append(current)
+                    i_rolling_avg = sum(i_rolling_avg_deque)/len(i_rolling_avg_deque)
+                except TypeError:
+                    i_rolling_avg = i_avg
+
+                if i_avg - i_rolling_avg > 10:
+                    self._const_v_start_idx = i
+                    print(f'const v start {i}')
+            # start of discharge
+            if self._const_v_start_idx > 0 and self._dischrg_start_idx < 0:
+                if all([current < 0 for current in i_discharge_deque]):
+                    self._dischrg_start_idx = i
+                    print(f'dischrg start {i}')
+                    break
+                i_discharge_deque.append(current)
+
+        # split result into charge phases
+        try:
+            test_phases = [
+                self._results[self._prechrg_start_idx+10:self._const_i_start_idx-10],
+                self._results[self._const_i_start_idx+10:self._const_v_start_idx-10],
+                self._results[self._const_v_start_idx+10:self._dischrg_start_idx-10],
+                self._results[self._dischrg_start_idx+50:-3]
+            ]
+        except IndexError:
+            print('unable to split into phases')
+            return False
+
+        global test_lims
+        errors = 0
+
+        for i, (phase, limit) in enumerate(zip(test_phases, test_lims)):
+            # print(phase)
+            i_results = [result.get('bat_current_mA',None) for result in phase]
+            v_results = [result.get('bat_voltage_mV',None) for result in phase]
+
+            i_stats = self.calc_stats(i_results)
+            v_stats = self.calc_stats(v_results)
+            
+            try:
+                if i_stats['min'] < limit['i_min']:
+                    print(f'i_lim min {i} {i_stats}')
+                    errors += 1
+                if i_stats['max'] > limit['i_max']:
+                    print(f'i_lim max {i} {i_stats}')
+                    errors += 1
+                if v_stats['min'] < limit['v_min']:
+                    print(f'v_lim min {i} {v_stats}')
+                    errors += 1
+                if v_stats['max'] > limit['v_max']:
+                    print(f'v_lim max {i} {v_stats}')
+                    errors += 1
+            except TypeError:
+                errors += 1
+
+        return errors == 0
+
+    def calc_stats(self,measurement_list):
+        stats = {}
+        try:
+            stats['min'] = min(measurement_list)
+            stats['max'] = max(measurement_list)
+            stats['avg'] = sum(measurement_list)/len(measurement_list)
+            return stats
+        except:
+            print(measurement_list)
 
     def test_time(self):
-        return str(timedelta(milliseconds = self._t_elapsed_ms))   
+        test_time = datetime.fromtimestamp(self._t_elapsed_ms/1000).strftime("%H:%M:%S")
+        print(self._t_elapsed_ms)
+        print(test_time)
+        return test_time
+
+    def test_time_h(self):
+        return self._t_elapsed_ms/(1000 * 60 * 60)   
 
     @property
     def last(self):
@@ -128,7 +286,7 @@ def result_str(**kwargs):
 if __name__ == "__main__":
     fname = sys.argv[1]
     test_log = TestLog(fname,load=True)
-    print(test_log._results)
+    print(test_log.test_pass())
     
 
 # class Result(object):

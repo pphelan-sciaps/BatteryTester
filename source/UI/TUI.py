@@ -43,6 +43,8 @@ class TUI():
         self.test_status = 'N/A'
         self.test_time = 'N/A'
 
+        self.box_open = False
+
         self.prompt_str = PROMPT_STR_DEFAULT
 
         self.gas_gauge_stats = {
@@ -115,7 +117,7 @@ class TUI():
 
         elif key_int == ord('o'):   # open box
             box_idx = self.get_prompt('enter box number: ')
-            self.shell.onecmd(f'open {box_idx}')
+            self.box_open = self.shell.onecmd(f'open {box_idx}')
 
             box_id = self.shell.onecmd('box_id')
             self.prompt_str = PROMPT_STR_DEFAULT + f'box {box_id} opened'
@@ -126,6 +128,7 @@ class TUI():
             else:
                 box_id = self.shell.onecmd('box_id')
                 self.shell.onecmd('close')
+                self.box_open = False
                 self.prompt_str = PROMPT_STR_DEFAULT + f'box {box_id} closed'
         
         elif key_int == ord('q'):   # quickcharge
@@ -199,8 +202,9 @@ class TUI():
 
 
     def update_conns(self):
-        _ , self.boxes = self.shell.onecmd('list_boxes')
-        self.draw_conn_win()
+        if not self.box_open:
+            _ , self.boxes = self.shell.onecmd('list_boxes')
+            self.draw_conn_win()
 
 
     def update_stats(self):

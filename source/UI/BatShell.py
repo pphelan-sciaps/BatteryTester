@@ -230,8 +230,7 @@ class BatShell(Cmd):
 
     def do_read_gas_gauge(self,args):
         if self._box:
-            if self._box.battery_present:
-                return self._box.gas_gauge.get_all()
+            return self._box.gas_gauge.get_all()
 
 
                 # gas_gauge_data = self._box.gas_gauge.get_all()
@@ -243,8 +242,6 @@ class BatShell(Cmd):
                 #         f'({gas_gauge_data["charge_level"]:.1f}%)')
                 #     print(f'voltage: {self._box.gas_gauge.voltage_mV:.0f} mV')
                 #     print(f'current: {self._box.gas_gauge.current_mA:.0f} mA')
-            else:
-                pass
                 # print('battery not present')
                 
 

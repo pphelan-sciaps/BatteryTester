@@ -344,8 +344,8 @@ class PretestState(State):
             # self._test_box_half.gpio.led_run_enable = False
             # return IdleState(self._test_box_half)
 
-        timeout = (time.time() - self._last_read_time) > timeout_time_s\
-            and self._last_read_time > 0:
+        timeout = (time.time() - self._last_read_time) > self.timeout_time_s \
+            and self._last_read_time > 0
 
         if flag == Flags.STOP or timeout:
             print('PRETEST stopped')
@@ -371,6 +371,9 @@ class ChargeTestState(LogState):
         self._test_box_half.gpio.charge_enable = True
         self._test_box_half.gpio.led_run_enable = True
 
+        global test_log
+        test_log = TestLog()
+
     def do(self):
         super().do()        
 
@@ -387,8 +390,8 @@ class ChargeTestState(LogState):
             pass
             # return IdleState(self._test_box_half)
 
-        timeout = (time.time() - self._last_read_time) > timeout_time_s\
-            and self._last_read_time > 0:
+        timeout = (time.time() - self._last_read_time) > self.timeout_time_s\
+            and self._last_read_time > 0
 
         if flag == Flags.STOP or timeout:
             self.teardown()
@@ -424,7 +427,7 @@ class DischargeTestState(LogState):
         self._current_lim_debounce = 0
 
         global test_log
-        self._state_start_time = test_log.test_time_h()
+        self._state_start_time = time.time()
 
     def do(self):
         super().do()
@@ -451,10 +454,10 @@ class DischargeTestState(LogState):
             # print('GAS GAUGE COMM ERROR')
             # return IdleState(self._test_box_half)
 
-        state_time = test_log.test_time_h() - self._state_start_time
+        state_time = (time.time() - self._state_start_time)/(60 * 60)
 
-        timeout = (time.time() - self._last_read_time) > timeout_time_s\
-            and self._last_read_time > 0:
+        timeout = (time.time() - self._last_read_time) > self.timeout_time_s\
+            and self._last_read_time > 0
 
         if flag == Flags.STOP or timeout:
             self.teardown()
@@ -502,8 +505,8 @@ class QuickchargeState(LogState):
 
         # current_limit = abs(self._test_box_half.gas_gauge.current_mA) < 25
 
-        timeout = (time.time() - self._last_read_time) > timeout_time_s\
-            and self._last_read_time > 0:
+        timeout = (time.time() - self._last_read_time) > self.timeout_time_s\
+            and self._last_read_time > 0
 
         if flag == Flags.STOP or timeout:
             print('QUICKCHARGE stopped')
@@ -545,8 +548,8 @@ class QuickdischargeState(LogState):
         except I2CReadError:
             return self
 
-        timeout = (time.time() - self._last_read_time) > timeout_time_s\
-            and self._last_read_time > 0:
+        timeout = (time.time() - self._last_read_time) > self.timeout_time_s\
+            and self._last_read_time > 0
 
         if flag == Flags.STOP or timeout:
             print('QUICKCHARGE stopped')

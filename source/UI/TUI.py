@@ -227,8 +227,9 @@ class TUI():
                 result = 'fail - please review log file'
             self.prompt_str = PROMPT_STR_DEFAULT + f'test result: {result}'
 
-        stats = self.shell.onecmd('read_gas_gauge')
+        
         try:
+            stats = self.shell.onecmd('read_gas_gauge')
             self.gas_gauge_stats ={
                 'bat_voltage_mV'   : f'{stats["bat_voltage_mV"]:5.0f}',
                 'bat_current_mA'   : f'{stats["bat_current_mA"]:5.0f}',
@@ -243,8 +244,11 @@ class TUI():
                 'bat_charge_level'  : 'xxx.x'
             }
 
-        gas_gauge_config = self.shell.onecmd('read_gas_gauge_config')
-        self.gas_gauge_config = hex(gas_gauge_config) if gas_gauge_config else 'N/A'
+        try:
+            gas_gauge_config = self.shell.onecmd('read_gas_gauge_config')
+            self.gas_gauge_config = hex(gas_gauge_config)
+        except:
+            self.gas_gauge_config = 'N/A'
         
         self.draw_stat_win()
 

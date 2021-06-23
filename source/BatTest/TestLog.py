@@ -72,8 +72,8 @@ class TestLog(object):
         fname: str = None,
         load: bool = False,
         box_id: str = ''):
+
         self._results = []
-        self._start_datetime = datetime.now()
         self._t_elapsed_ms = 0
 
         self._box_id = box_id
@@ -90,7 +90,7 @@ class TestLog(object):
         else:
             self._fname = f'test_results\\battery_test_' \
                 f'box_{self._box_id}_'\
-                f'{self._start_datetime.strftime("%Y-%m-%d_%H-%M-%S")}.csv'
+                f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.csv'
 
         if load:
             # load from existing file
@@ -103,12 +103,12 @@ class TestLog(object):
 
     def add_result(self, result_dict):
         # elapsed time in HH:MM:SS.ms and ms
-        result_datetime = result_dict['bat_timestamp']
-        dt = result_datetime - self._start_datetime
-        self._t_elapsed_ms = dt.seconds * 1000 + dt.microseconds / 1000
-        result_dict['bat_timestamp'] = self._t_elapsed_ms
+        # result_datetime = result_dict['bat_timestamp']
+        # dt = result_datetime - self._start_datetime
+        # self._t_elapsed_ms = dt.seconds * 1000 + dt.microseconds / 1000
+        # result_dict['bat_timestamp'] = self._t_elapsed_ms
 
-        result_row = [str(dt), *result_dict.values()]
+        result_row = [*result_dict.values()]
 
         self._results.append(result_dict)
         with open(self._fname, 'a', newline='') as file:
@@ -256,14 +256,17 @@ class TestLog(object):
         except:
             print(measurement_list)
 
-    def test_time(self):
-        test_time = datetime.fromtimestamp(self._t_elapsed_ms/1000).strftime("%H:%M:%S")
-        print(self._t_elapsed_ms)
-        print(test_time)
-        return test_time
+    # @property
+    # def test_time(self):
+    #     test_time = datetime.fromtimestamp(self._t_elapsed_ms/1000).strftime("%H:%M:%S")
+    #     print(self._t_elapsed_ms)
+    #     print(test_time)
+    #     1/0
+    #     return test_time
 
-    def test_time_h(self):
-        return self._t_elapsed_ms/(1000 * 60 * 60)   
+    # @property
+    # def test_time_h(self):
+    #     return self._t_elapsed_ms/(1000 * 60 * 60)   
 
     @property
     def last(self):

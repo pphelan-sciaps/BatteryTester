@@ -6,7 +6,7 @@ from datetime import datetime
 # external packages
 
 # internal packages
-from .I2C import I2C
+from .I2C import I2C, I2CError
 from .I2C import RegisterMap
 from .I2C import Register
 from .I2C import uint8_to_uint
@@ -124,7 +124,8 @@ class LTC2943(object):
             charge['mAh'] = q_lsb * reg_value 
             charge['level'] = 100 * reg_value / 0xFFFF
         except TypeError as e:
-            charge = None
+            # charge = None
+            print('comm err')
         
         return charge
 
@@ -148,13 +149,13 @@ class LTC2943(object):
     
     @property
     def voltage_mV(self):
-        msb = self._reg_map.read_reg(0x08)
-        lsb = self._reg_map.read_reg(0x09)
         try:
+            msb = self._reg_map.read_reg(0x08)
+            lsb = self._reg_map.read_reg(0x09)
             reg_value = uint8_to_uint(msb,lsb)
             voltage = 1000 * self.V_BAT_FS * reg_value / 0xFFFF # register to voltage 
         except TypeError as e:
-            voltage = None
+            voltage = None 
         
         return voltage
 

@@ -6,7 +6,7 @@
 from source.TestBoxIF.I2C import I2C
 from source.TestBoxIF.TestBoxHalf import TestBoxHalf
 from source.BatTest.TestLog import TestLog
-from source.BatTest.FSM import FSM
+from source.BatTest.FSM import FSM, States
 
 class BatteryTest(object):
     """docstring for BatteryTest"""
@@ -42,8 +42,8 @@ class BatteryTest(object):
 
     @property
     def test_time(self):
-        if self.test_log:
-            return self.test_log.test_time
+        if self._fsm.state_name != States.IDLE.value:
+            return self._fsm.test_time
 
     @property
     def test_time_h(self):

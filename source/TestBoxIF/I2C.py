@@ -9,7 +9,7 @@ import ft4222
 from ft4222 import FT4222
 from ft4222 import I2CMaster
 from ft4222.I2CMaster import Flag
-from ft4222.I2CMaster import ControllerStatus
+from ft4222.I2CMaster import ControllerStatus as I2CStat
 
 # internal packages for command line tool
 # from .ConnectionManager import ConnectionManager
@@ -49,10 +49,10 @@ class RegisterMap(object):
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
-            return
+            
         elif reg.read_write == 'r':
             raise I2CError('register is read only')
-            return
+            
 
         if value is not None:
             reg.value = value
@@ -62,16 +62,17 @@ class RegisterMap(object):
             reg_value = reg.value
             # print(reg_addr,reg_value)
             data = bytearray((reg_addr,reg_value))
+
             self._i2c.write(addr,data)
 
     def write_bit(self, reg_addr: int, bit_num: int, value: int):
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
-            return
+            
         elif reg.read_write == 'r':
             raise I2CError('register is read only')
-            return
+            
 
         reg.set_bit(bit_num,value)
         self.write_reg(reg_addr)
@@ -94,17 +95,7 @@ class RegisterMap(object):
             data = reg_addr
             word = self._i2c.read(addr,data,reg.num_bytes)
 
-            status = self._i2c.status
-            error = status & I2CMaster.ControllerStatus.ERROR
-            addr_nack = status & I2CMaster.ControllerStatus.ADDRESS_NACK
-            data_nack = status & I2CMaster.ControllerStatus.DATA_NACK
-
-            # print(hex(status))
-
-            if error or addr_nack or data_nack:
-                reg.value = None
-            else:
-                reg.value = int.from_bytes(word,'big')
+            reg.value = int.from_bytes(word,'big')
 
 
         return reg.value
@@ -245,22 +236,76 @@ class I2C(object):
 
     def write(self, addr: int, data: bytearray):
         # print(f'write - addr: {addr} data: {data}')
-        return self._ic.i2cMaster_Write(addr, data)
+        try:
+            self._ic.i2cMaster_Write(addr, data)
+
+            # wait until not busy
+            while True:
+                stat = self.i2c_status
+                if not (stat & (I2CStat.BUSY | I2CStat.BUS_BUSY)):
+                    break
+
+            # stat = self.i2c_status
+            
+            if stat == I2CStat.IDLE:  # ok
+                return True
+            elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
+                raise I2CNoDeviceError
+            else:
+                raise I2CWriteError(stat)
+        except ft4222.FT4222DeviceError as e:
+            raise e
 
     def read(self, addr: int, data: int, num_bytes: int) -> bytearray:
         try:
+            # address pointer write
             wr_flags = Flag.START
             self._ic.i2cMaster_WriteEx(addr, wr_flags, data)
 
+            # wait until not busy
+            while True:
+                stat = self.i2c_status
+                if not (stat & I2CStat.BUSY):
+                    break
+            
+            if stat == I2CStat.BUS_BUSY:  # for combined write read
+                pass
+            elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
+                raise I2CNoDeviceError
+            else:
+                raise I2CReadError('write')
+                
+
+            # data read
             rd_flags = Flag.REPEATED_START | Flag.STOP
             data_rd = self._ic.i2cMaster_ReadEx(addr,rd_flags,num_bytes)
+            # print(data_rd)
+
+            data_no_device = b'\x00'
+            while self.i2c_status & (I2CStat.BUSY | I2CStat.BUS_BUSY):
+                # print(self.i2c_status)
+                pass
+            stat = self.i2c_status
+
+            if stat == I2CStat.IDLE:  # ok
+                return data_rd
+            elif ord(data_rd) == 0:
+                raise I2CNoDeviceError
+            else:
+                raise I2CReadError('read')
+
+
             # print(f'read  - addr: {addr} reg: {data} data_rd {data_rd}')
-            return data_rd
+
+            # stat 
+
+        except I2CError as e:
+            raise e
         except ft4222.FT4222DeviceError as e:
             raise e
 
     @property
-    def status(self):
+    def i2c_status(self):
         return self._ic.i2cMaster_GetStatus()
 
     @property
@@ -274,6 +319,15 @@ def uint8_to_uint(msb: int = 0, lsb: int = 0):
 
 # exceptions
 class I2CError(Exception):
+    pass
+
+class I2CReadError(I2CError):
+    pass
+
+class I2CWriteError(I2CError):
+    pass
+
+class I2CNoDeviceError(I2CError):
     pass
 
 class DemoApp(Cmd):

@@ -69,18 +69,18 @@ class GPIO(object):
     @property
     def input_port_word(self, port_num: int):
         if port_num == 0:
-            return self._reg_map.read_reg(0x0)
+            return self._reg_map.read_reg(reg_addr=0x0, retries=3)
         elif port_num == 1:
-            return self._reg_map.read_reg(0x1)
+            return self._reg_map.read_reg(reg_addr=0x1, retries=3)
         else:
             raise GPIOError('invalid input port')
 
     @property
     def output_port_word(self, port_num: int):
         if port_num == 0:
-            return self._reg_map.read_reg(0x2)
+            return self._reg_map.read_reg(reg_addr=0x2, retries=3)
         elif port_num == 1:
-            return self._reg_map.read_reg(0x3)
+            return self._reg_map.read_reg(reg_addr=0x3, retries=3)
         else:
             raise GPIOError('invalid output port')
 
@@ -88,20 +88,24 @@ class GPIO(object):
     def battery_present(self):
         '''input for detecting inserted battery
         '''
-        return not self._reg_map.read_bit(reg_addr=0x0,bit_num=7)
+        return not self._reg_map.read_bit(reg_addr=0x0, bit_num=7, retries=3)
 
     @property
     def charge_enable(self):
         '''output for enabling battery charging
         '''
-        return self._reg_map.read_bit(reg_addr=0x3,bit_num=0)
+        return self._reg_map.read_bit(reg_addr=0x3, bit_num=0, retries=3)
 
     @charge_enable.setter
     def charge_enable(self,enable):
         if self.discharge_enable and enable:
             raise GPIOError('cannot enable charge during discharge')
         else:
-            self._reg_map.write_bit(reg_addr=0x3,bit_num=0,value=enable)
+            self._reg_map.write_bit(
+                reg_addr=0x3,
+                bit_num=0,
+                value=enable,
+                retries=3)
 
     # TODO
     # @property
@@ -134,14 +138,14 @@ class GPIO(object):
     def discharge_enable(self):
         '''output for enabling battery discharge
         '''
-        return self._reg_map.read_bit(reg_addr=0x2,bit_num=0)
+        return self._reg_map.read_bit(reg_addr=0x2,bit_num=0,retries=3)
 
     @discharge_enable.setter
     def discharge_enable(self, enable: bool):
         if self.charge_enable and enable:
             raise GPIOError('cannot enable discharge during charge')
         else:
-            self._reg_map.write_bit(reg_addr=0x2,bit_num=0,value=enable)
+            self._reg_map.write_bit(reg_addr=0x2,bit_num=0,value=enable,retries=3)
 
     # TODO
     # @property
@@ -173,29 +177,29 @@ class GPIO(object):
     def led_run_enable(self):
         '''output for enabling run indication led
         '''
-        return self._reg_map.read_bit(reg_addr=0x3,bit_num=2)
+        return self._reg_map.read_bit(reg_addr=0x3,bit_num=2,retries=3)
 
     @led_run_enable.setter
     def led_run_enable(self, enable: int):
-        self._reg_map.write_bit(reg_addr=0x3,bit_num=2,value=enable) 
+        self._reg_map.write_bit(reg_addr=0x3,bit_num=2,value=enable,retries=3) 
 
     @property
     def led_done_enable(self) -> int:
         '''output for enabling run indication led
         '''
-        return self._reg_map.read_bit(reg_addr=0x3,bit_num=3)
+        return self._reg_map.read_bit(reg_addr=0x3,bit_num=3,retries=3)
 
     @led_done_enable.setter
     def led_done_enable(self,enable: int):
-        self._reg_map.write_bit(reg_addr=0x3,bit_num=3,value=enable) 
+        self._reg_map.write_bit(reg_addr=0x3,bit_num=3,value=enable,retries=3) 
 
     @property
     def led_error_enable(self):
-        return self._reg_map.read_bit(reg_addr=0x3,bit_num=1)
+        return self._reg_map.read_bit(reg_addr=0x3,bit_num=1,retries=3)
 
     @led_error_enable.setter
     def led_error_enable(self,enable):
-        self._reg_map.write_bit(reg_addr=0x3,bit_num=1,value=enable)
+        self._reg_map.write_bit(reg_addr=0x3,bit_num=1,value=enable,retries=3)
 
 
 class GPIOError(Exception):

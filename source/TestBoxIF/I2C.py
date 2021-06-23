@@ -2,6 +2,7 @@
 from __future__ import annotations
 from enum import Enum
 from cmd import Cmd
+import traceback
 
 # external packages
 from bitstring import BitArray
@@ -45,7 +46,13 @@ class RegisterMap(object):
         for reg in self._registers:
             print(reg)
 
-    def write_reg(self, reg_addr: int, value: int=None):
+    def write_reg(
+        self,
+        reg_addr: int,
+        value: int=None,
+        retries: int=0
+    ):
+
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
@@ -63,9 +70,16 @@ class RegisterMap(object):
             # print(reg_addr,reg_value)
             data = bytearray((reg_addr,reg_value))
 
-            self._i2c.write(addr,data)
+            self._i2c.write(addr,data,retries)
 
-    def write_bit(self, reg_addr: int, bit_num: int, value: int):
+    def write_bit(
+        self,
+        reg_addr: int,
+        bit_num: int,
+        value: int,
+        retries: int=0
+    ):
+
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
@@ -75,7 +89,7 @@ class RegisterMap(object):
             
 
         reg.set_bit(bit_num,value)
-        self.write_reg(reg_addr)
+        self.write_reg(reg_addr,None,retries)
 
     def write_all(self):
         if self._i2c:
@@ -83,7 +97,13 @@ class RegisterMap(object):
                 if reg.read_write == 'rw':
                     self.write_reg(reg_addr)
 
-    def read_reg(self, reg_addr: int, transaction=True) -> int:
+    def read_reg(
+        self,
+        reg_addr: int,
+        transaction=True,
+        retries: int=0
+    ) -> int:
+
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
@@ -93,21 +113,28 @@ class RegisterMap(object):
             # transaction
             addr = self._address
             data = reg_addr
-            word = self._i2c.read(addr,data,reg.num_bytes)
+            word = self._i2c.read(addr,data,reg.num_bytes,retries)
 
             reg.value = int.from_bytes(word,'big')
 
 
         return reg.value
 
-    def read_bit(self, reg_addr: int, bit_num, transaction=True):
+    def read_bit(
+        self,
+        reg_addr: int,
+        bit_num,
+        transaction=True,
+        retries: int=0
+    ):
+
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
             return
 
         if transaction:
-            self.read_reg(reg_addr)
+            self.read_reg(reg_addr,retries)
         return reg.get_bit(bit_num)
 
                      
@@ -234,75 +261,95 @@ class I2C(object):
     def hw_init(self, speed_kbps: int):
         self._ic.i2cMaster_Init(100)    # speed in kbps
 
-    def write(self, addr: int, data: bytearray):
+    def write(
+        self,
+        addr: int,
+        data: bytearray,
+        retries: int=0):
         # print(f'write - addr: {addr} data: {data}')
-        try:
-            self._ic.i2cMaster_Write(addr, data)
+        # traceback.print_stack()
 
-            # wait until not busy
-            while True:
-                stat = self.i2c_status
-                if not (stat & (I2CStat.BUSY | I2CStat.BUS_BUSY)):
-                    break
+        while retries >= 0:
+            print(f'{hex(addr)} - {data}')
+            try:
+                retries -= 1
+                self._ic.i2cMaster_Write(addr, data)
 
-            # stat = self.i2c_status
-            
-            if stat == I2CStat.IDLE:  # ok
-                return True
-            elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
-                raise I2CNoDeviceError
-            else:
-                raise I2CWriteError(stat)
-        except ft4222.FT4222DeviceError as e:
-            raise e
+                # wait until not busy
+                while True:
+                    stat = self.i2c_status
+                    if not (stat & (I2CStat.BUSY | I2CStat.BUS_BUSY)):
+                        break
 
-    def read(self, addr: int, data: int, num_bytes: int) -> bytearray:
-        try:
-            # address pointer write
-            wr_flags = Flag.START
-            self._ic.i2cMaster_WriteEx(addr, wr_flags, data)
-
-            # wait until not busy
-            while True:
-                stat = self.i2c_status
-                if not (stat & I2CStat.BUSY):
-                    break
-            
-            if stat == I2CStat.BUS_BUSY:  # for combined write read
-                pass
-            elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
-                raise I2CNoDeviceError
-            else:
-                raise I2CReadError('write')
+                # stat = self.i2c_status
                 
+                if stat == I2CStat.IDLE:  # ok
+                    return True
+                elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
+                    raise I2CNoDeviceError
+                else:
+                    raise I2CWriteError(stat)
 
-            # data read
-            rd_flags = Flag.REPEATED_START | Flag.STOP
-            data_rd = self._ic.i2cMaster_ReadEx(addr,rd_flags,num_bytes)
-            # print(data_rd)
-
-            data_no_device = b'\x00'
-            while self.i2c_status & (I2CStat.BUSY | I2CStat.BUS_BUSY):
-                # print(self.i2c_status)
-                pass
-            stat = self.i2c_status
-
-            if stat == I2CStat.IDLE:  # ok
-                return data_rd
-            elif ord(data_rd) == 0:
-                raise I2CNoDeviceError
-            else:
-                raise I2CReadError('read')
+            except I2CError as e:
+                if retries < 0:
+                    raise e
+            except ft4222.FT4222DeviceError as e:
+                raise e
+                break
 
 
-            # print(f'read  - addr: {addr} reg: {data} data_rd {data_rd}')
+    def read(
+        self,
+        addr: int,
+        data: int,
+        num_bytes: int,
+        retries: int=0
+    ) -> bytearray:
+        while retries >= 0:
+            try:
+                retries -= 1
+                # address pointer write
+                wr_flags = Flag.START
+                self._ic.i2cMaster_WriteEx(addr, wr_flags, data)
 
-            # stat 
+                # wait until not busy
+                while True:
+                    stat = self.i2c_status
+                    if not (stat & I2CStat.BUSY):
+                        break
+                
+                if stat == I2CStat.BUS_BUSY:  # for combined write read
+                    pass
+                elif stat in (I2CStat.ADDRESS_NACK, I2CStat.DATA_NACK):
+                    raise I2CNoDeviceError
+                else:
+                    raise I2CReadError('write')
+                    
 
-        except I2CError as e:
-            raise e
-        except ft4222.FT4222DeviceError as e:
-            raise e
+                # data read
+                rd_flags = Flag.REPEATED_START | Flag.STOP
+                data_rd = self._ic.i2cMaster_ReadEx(addr,rd_flags,num_bytes)
+                # print(data_rd)
+
+                data_no_device = b'\x00'
+                while self.i2c_status & (I2CStat.BUSY | I2CStat.BUS_BUSY):
+                    # print(self.i2c_status)
+                    pass
+                stat = self.i2c_status
+
+                if stat == I2CStat.IDLE:  # ok
+                    return data_rd
+                elif ord(data_rd) == 0:
+                    raise I2CNoDeviceError
+                else:
+                    raise I2CReadError('read')
+
+            except I2CError as e:
+                if retries < 0:
+                    raise e
+            except ft4222.FT4222DeviceError as e:
+                raise e
+                break
 
     @property
     def i2c_status(self):

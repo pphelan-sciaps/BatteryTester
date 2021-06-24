@@ -14,7 +14,7 @@ from collections import deque
 # constants
 csv_headers = [
     'Time elapsed',
-    'Time elapsed (ms)',
+    'Time elapsed (s)',
     'Bat Voltage (mV)',
     'Bat Current (mA)',
     'Bat Charge (mAh)',
@@ -64,6 +64,7 @@ test_lims = [prechrg_lims, const_i_lims, const_v_lims, dischrg_lims]
 
 PRECHRG_END_VFB_THRESH_mV = 1550*235/30  # VFB = Vbat(mV) * 30k/(205k + 30k)
 DISCHRG_I_THRESH_mA = -50
+SAMP_TIME_S = 1
 
 
 class TestLog(object):
@@ -73,8 +74,10 @@ class TestLog(object):
         load: bool = False,
         box_id: str = ''):
 
-        self._results = []
-        self._t_elapsed_ms = 0
+        self._result_buffer = []    # data to be averaged to one result
+        self._results = []          # list of averaged results
+        self._start_time = 0
+        self._last_read_time = 0
 
         self._box_id = box_id
 
@@ -103,17 +106,43 @@ class TestLog(object):
 
     def add_result(self, result_dict):
         # elapsed time in HH:MM:SS.ms and ms
-        # result_datetime = result_dict['bat_timestamp']
-        # dt = result_datetime - self._start_datetime
-        # self._t_elapsed_ms = dt.seconds * 1000 + dt.microseconds / 1000
-        # result_dict['bat_timestamp'] = self._t_elapsed_ms
+        # calculate time since last read
+        timestamp = result_dict['bat_timestamp']
 
-        result_row = [*result_dict.values()]
+        if self._start_time == 0:
+            self._start_time = timestamp
+            self._last_read_time = timestamp
 
-        self._results.append(result_dict)
-        with open(self._fname, 'a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(result_row)
+        t_elapsed = timedelta(seconds = timestamp - self._start_time)
+        t_elapsed_str = str(t_elapsed).split('.')[0]
+        t_buffer_elapsed = timestamp - self._last_read_time
+        # average buffer after period and write result
+        if t_buffer_elapsed > SAMP_TIME_S:
+            avg_result = {}
+            for k in result_keys:
+                try:
+                    avg_result[k] = sum([res[k] for res in self._result_buffer])\
+                        /len(self._result_buffer)
+                except KeyError:
+                    pass
+                except ValueError:
+                    pass
+
+            self._last_read_time = timestamp
+            self._result_buffer = []
+
+            # add result to buffer
+            result_dict['bat_timestamp'] = t_elapsed
+            result_row = [t_elapsed_str, *avg_result.values()]
+
+            self._results.append(avg_result)
+            with open(self._fname, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(result_row)
+
+        self._result_buffer.append(result_dict)
+
+
 
     def csv_header_write(self):
         with open(self._fname, 'w', newline='') as file:

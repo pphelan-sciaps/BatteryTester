@@ -108,6 +108,7 @@ class States(Enum):
     QUICKDISCHARGE = 'sQUICKDISCHARGE'
     PRETEST = 'sPRETEST'
     CHARGE_TEST = 'sCHARGE_TEST'
+    WAIT = 'sWAIT'
     DISCHARGE_TEST = 'sDISCHARGE_TEST'
     POSTTEST = 'sPOSTTEST'
 
@@ -127,8 +128,8 @@ class State(object):
         test_box_half: TestBoxHalf = None,
     ):
         self._test_box_half = test_box_half
-        self._start_time = datetime.now()
-        self._elapsed_time_ms = 0
+        self._start_time = time.time()
+        self._elapsed_time_s = 0
         self._last_read_time = 0
 
     timeout_time_s = 10
@@ -150,9 +151,7 @@ class State(object):
         return None    
 
     def do(self):
-
-        dt = datetime.now() - self._start_time
-        self._elapsed_time_ms = dt.seconds * 1000 + dt.microseconds / 1000
+        self._elapsed_time_s = time.time() - self._start_time
         # print(self.name)
 
     def next(self, flag = None):
@@ -166,15 +165,15 @@ class LogState(State):
         try:
             gas_gauge_data = self._test_box_half.gas_gauge.get_all()
 
-            result_datetime = result_dict['bat_timestamp']
-            dt = result_datetime - self._start_time
-            self._elapsed_time = dt.seconds * 1000 + dt.microseconds / 1000
-            gas_gauge_data['bat_timestamp'] = self._elapsed_time
+            # result_datetime = gas_gauge_data['bat_timestamp']
+            # dt = result_datetime - self._start_time
+            # self._elapsed_time = dt.seconds * 1000 + dt.microseconds / 1000
+            # gas_gauge_data['bat_timestamp'] = self._elapsed_time
 
             test_log.add_result(gas_gauge_data)
             self._last_read_time = time.time()
-        except:
-            pass
+        except Exception as e:
+            raise e
         # print(result_str(**gas_gauge_data))
 
     def next(self):
@@ -414,6 +413,13 @@ class ChargeTestState(LogState):
     def teardown(self):
         self._test_box_half.gpio.charge_enable = False
         self._test_box_half.gpio.led_run_enable = False
+
+class WaitState(State):
+    name = States.DISCHARGE_TEST.value
+
+    def do(self):
+        super().do()
+
 
 class DischargeTestState(LogState):
     name = States.DISCHARGE_TEST.value

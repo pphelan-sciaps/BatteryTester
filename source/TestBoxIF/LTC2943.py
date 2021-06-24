@@ -1,7 +1,7 @@
 # standard library
 from enum import IntEnum
 from cmd import Cmd
-from datetime import datetime
+import time
 
 # external packages
 
@@ -186,7 +186,7 @@ class LTC2943(object):
 
     def get_all(self) -> dict:
         result = {
-            'bat_timestamp'     : datetime.now(),
+            'bat_timestamp'     : time.time(),
             'bat_voltage_mV'    : self.voltage_mV,
             'bat_current_mA'    : self.current_mA,
             'bat_charge_mAh'    : self.charge_mAh,
@@ -198,7 +198,7 @@ class LTC2943(object):
 
     def __str__(self):
         if self.charge:
-            return f'{datetime.now().strftime("%H:%M:%S")}\n'\
+            return f'{time.time().strftime("%H:%M:%S")}\n'\
                 f'charge: {self.charge["mAh"]:.0f} mAh '\
                     f'({self.charge["level"]:.1f}%)\n'\
                 f'voltage: {self.voltage_mV:.0f} mV\n'\

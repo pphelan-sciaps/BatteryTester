@@ -10,6 +10,8 @@ from source.UI.BatShell import BatShell
 from source.BatTest.FSM import States
 
 # constants
+VERSION = '0.1.1'
+
 ColorPair = namedtuple('ColorPair', ['idx', 'fg', 'bg'])
 color_pairs = {
     'BY' : ColorPair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW),
@@ -69,9 +71,9 @@ class TUI():
     def curses_main(self,stdscr):
         # init elements
         self.stdscr = stdscr
-        self.title_win  = curses.newwin( 4, 40,  0, 0)
-        self.conn_win   = curses.newwin( 2, 40,  4, 0)
-        self.box_win    = curses.newwin(10, 40,  6, 0)
+        self.title_win  = curses.newwin( 4, 80,  0, 0)
+        self.conn_win   = curses.newwin( 2, 80,  4, 0)
+        self.box_win    = curses.newwin(10, 80,  6, 0)
         self.cmd_win    = curses.newwin( 3, 80, 16, 0)
         # self.prompt_pad = curses.newpad( 1, 200)
         # self.prompt_pad.refresh(0,0, 19,0, 19,79)
@@ -266,16 +268,21 @@ class TUI():
         self.stdscr.refresh()
         self.title_win.erase()
         self.title_win.refresh()
-        win_str =  '-------------------\n'
-        win_str += '---BatShell V1.0---\n'
-        win_str += '-------------------\n'
+        win_str =  '---------------------\n'
+        win_str += f'---BatShell V{VERSION}---\n'
+        win_str += '---------------------\n'
         self.title_win.addstr(0,0,win_str)
         self.title_win.refresh()
 
     def draw_conn_win(self):
         self.stdscr.refresh()
         self.conn_win.erase()
-        self.conn_win.addstr(0,0,f'Available boxes: {self.boxes}\n')
+        self.conn_win.addstr(0,0,f'Available boxes: ')
+        for box in self.boxes:
+            try:
+                self.conn_win.addstr(f'{box} ')
+            except curses.error:
+                pass
         self.conn_win.refresh()
 
     def draw_stat_win(self):

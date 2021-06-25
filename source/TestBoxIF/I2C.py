@@ -1,5 +1,6 @@
 # standard library
 from __future__ import annotations
+import logging
 from enum import Enum
 from cmd import Cmd
 import traceback
@@ -247,9 +248,13 @@ class I2C(object):
     FLAG_STOP = 4
 
     def __init__(self, ic: FT4222, name: str = None, speed_kbps: int = 100):
+        self.logger = logging.getLogger('batman.TestBoxIF.I2C.I2C')
+
         self._ic = ic
         self._name = name
         self.hw_init(speed_kbps)
+
+        self.logger.info('I2C init')
 
     def __del__(self):
         if self._ic:
@@ -259,7 +264,8 @@ class I2C(object):
         return 'I2C object'
 
     def hw_init(self, speed_kbps: int):
-        self._ic.i2cMaster_Init(100)    # speed in kbps
+        stat = self._ic.i2cMaster_Init(100)    # speed in kbps
+        self.logger.info('i2c hw init')
 
     def write(
         self,
@@ -270,9 +276,10 @@ class I2C(object):
         # traceback.print_stack()
 
         while retries >= 0:
-            print(f'{hex(addr)} - {data}')
+            # print(f'{hex(addr)} - {data}')
             try:
                 retries -= 1
+                self.logger.debug(f'write - addr: {hex(addr)}\tdata: {data}')
                 self._ic.i2cMaster_Write(addr, data)
 
                 # wait until not busy
@@ -310,6 +317,7 @@ class I2C(object):
                 retries -= 1
                 # address pointer write
                 wr_flags = Flag.START
+                self.logger.debug(f'write ptr - addr: {hex(addr)}\treg: {data}')
                 self._ic.i2cMaster_WriteEx(addr, wr_flags, data)
 
                 # wait until not busy
@@ -330,6 +338,7 @@ class I2C(object):
                 rd_flags = Flag.REPEATED_START | Flag.STOP
                 data_rd = self._ic.i2cMaster_ReadEx(addr,rd_flags,num_bytes)
                 # print(data_rd)
+                self.logger.debug(f'read - addr: {hex(addr)}\tdata: {data_rd}')
 
                 data_no_device = b'\x00'
                 while self.i2c_status & (I2CStat.BUSY | I2CStat.BUS_BUSY):

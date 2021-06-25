@@ -1,4 +1,5 @@
 # standard library
+import logging
 from collections import namedtuple
 import curses
 import curses.textpad
@@ -6,12 +7,11 @@ import curses.textpad
 # external packages
 
 # internal packages
+from source import Config
 from source.UI.BatShell import BatShell
 from source.BatTest.FSM import States
 
 # constants
-VERSION = '0.1.1'
-
 ColorPair = namedtuple('ColorPair', ['idx', 'fg', 'bg'])
 color_pairs = {
     'BY' : ColorPair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW),
@@ -38,6 +38,8 @@ PROMPT_STR_DEFAULT = '(BatShell) '
 
 class TUI():
     def __init__(self):
+        self.logger = logging.getLogger('batman.TUI')
+
         self.shell = BatShell()
         self.boxes = []
 
@@ -64,6 +66,8 @@ class TUI():
         }
 
         self.gas_gauge_config = 'N/A'
+
+        self.logger.info('TUI init')
 
         curses.wrapper(self.curses_main)
 
@@ -112,6 +116,7 @@ class TUI():
         key_int = self.stdscr.getch()
         if key_int != -1:
             curses.beep()
+            self.logger.info(f'{chr(key_int)} pressed')
 
         shell_str = ''
         if key_int == ord('e'):     # exit
@@ -269,7 +274,7 @@ class TUI():
         self.title_win.erase()
         self.title_win.refresh()
         win_str =  '---------------------\n'
-        win_str += f'---BatShell V{VERSION}---\n'
+        win_str += f'---BatShell V{Config.VERSION}---\n'
         win_str += '---------------------\n'
         self.title_win.addstr(0,0,win_str)
         self.title_win.refresh()
@@ -349,8 +354,9 @@ class TUI():
 
         # self.shell_subwin.refresh()
 
-tui = None
+# tui = None
 
 # cli app for testing
 if __name__ == '__main__':
+    Config.logger_init()
     tui = TUI()

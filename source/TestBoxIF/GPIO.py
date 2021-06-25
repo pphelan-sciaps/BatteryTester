@@ -2,6 +2,7 @@
 '''
 
 # standard library
+import logging
 
 # external pakcages
 
@@ -20,7 +21,10 @@ class GPIO(object):
     def __init__(
         self,
         i2c: I2C = None,
-        address: int = 0x27):
+        address: int = 0x27
+    ):
+        self.logger = logging.getLogger('batman.TestBoxIF.GPIO.GPIO')
+
         # self.tca9555 = TCA9555(i2c=i2c, address=address)
         self._i2c = i2c
         self._address = address
@@ -58,7 +62,7 @@ class GPIO(object):
         for output in outputs:
             try:
                 output = False
-            except:
+            except I2CError:
                 pass
 
     # API
@@ -88,13 +92,18 @@ class GPIO(object):
     def battery_present(self):
         '''input for detecting inserted battery
         '''
-        return not self._reg_map.read_bit(reg_addr=0x0, bit_num=7, retries=3)
+        bat = not self._reg_map.read_bit(reg_addr=0x0, bit_num=7, retries=3)
+        self.logger.info(f'get battery_present: {bat}')
+        return bat
 
     @property
     def charge_enable(self):
         '''output for enabling battery charging
         '''
-        return self._reg_map.read_bit(reg_addr=0x3, bit_num=0, retries=3)
+        ce = self._reg_map.read_bit(reg_addr=0x3, bit_num=0, retries=3)
+        self.logger.info(f'get charge_enable: {ce}')
+        return ce
+
 
     @charge_enable.setter
     def charge_enable(self,enable):
@@ -106,6 +115,7 @@ class GPIO(object):
                 bit_num=0,
                 value=enable,
                 retries=3)
+            self.logger.info(f'set charge_enable: {enable}')
 
     # TODO
     # @property
@@ -138,7 +148,9 @@ class GPIO(object):
     def discharge_enable(self):
         '''output for enabling battery discharge
         '''
-        return self._reg_map.read_bit(reg_addr=0x2,bit_num=0,retries=3)
+        de = self._reg_map.read_bit(reg_addr=0x2,bit_num=0,retries=3)
+        self.logger.info(f'get discharge_enable: {de}')
+        return de
 
     @discharge_enable.setter
     def discharge_enable(self, enable: bool):
@@ -146,6 +158,7 @@ class GPIO(object):
             raise GPIOError('cannot enable discharge during charge')
         else:
             self._reg_map.write_bit(reg_addr=0x2,bit_num=0,value=enable,retries=3)
+            self.logger.info(f'set discharge_enable: {enable}')
 
     # TODO
     # @property

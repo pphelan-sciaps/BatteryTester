@@ -190,7 +190,8 @@ class LogState(State):
             td = result_datetime - self._start_time
             gas_gauge_data['bat_timestamp'] = td
             gas_gauge_data['bat_timestamp_ms'] = td.seconds * 1000 + td.microseconds / 1000
-            test_log.add_result(gas_gauge_data)
+            if test_log:
+                test_log.add_result(gas_gauge_data)
             self._last_read_time = datetime.now()
         except I2CError as e:
             self.logger.exception(e)
@@ -241,6 +242,9 @@ class IdleState(State):
             
         elif flag == Flags.START_QUICKCHARGE:
             self.logger.info('starting quick(dis)charge')
+
+            global test_log
+            test_log = None
 
             global charge_setpoint
             self.teardown()

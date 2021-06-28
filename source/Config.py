@@ -13,7 +13,7 @@ def logger_init(fname=None):
 
     # build filename (multiple instances may be running at once)
     if not fname:
-        fname = f'logs/batman_{datetime.now().strftime("%H-%M-%S")}.log'
+        fname = f'logs/batman_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'
 
     # format output
     formatter = logging.Formatter(

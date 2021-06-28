@@ -165,7 +165,7 @@ class TUI():
         elif key_int == ord('t'):   # test cycle
             if self.shell.onecmd('test_state') == States.IDLE.value:
                 self.shell.onecmd('start_test')
-                self.draw_prompt_win(+ f'running test')
+                self.draw_prompt_win(f'running test')
 
         elif key_int == ord('r'):   # resume test
             if self.shell.onecmd('test_state') == States.IDLE.value:

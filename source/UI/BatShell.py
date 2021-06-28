@@ -1,4 +1,5 @@
 # standard library
+import logging
 import curses
 import curses.textpad
 from cmd import Cmd
@@ -58,7 +59,7 @@ class BatShell(Cmd):
     def do_start_test(self,args):
         args_list = args.split()
         if '-s' in args_list:
-            charge_setpoint = 10
+            charge_setpoint = 11
             short_test = True
         else:
             charge_setpoint = 35
@@ -74,12 +75,14 @@ class BatShell(Cmd):
     def do_quickcharge(self,args):
         args_list = args.split()
         try:
-            charge_setpoint = int(args_list[0],0)
+            charge_setpoint = float(args_list[0])
+            self.logger.info(f'quickcharge setpoint - {charge_setpoint}')
             self._test_man.bat_test(0).start_quickcharge(charge_setpoint)
         except ValueError:
             print('Invalid charge setpoint')
-        except:
-            pass
+        except Exception as e:
+            self.logger.exception(e)
+            raise e
 
     def do_stop(self,args):
         if self._box:
@@ -253,6 +256,7 @@ class BatShell(Cmd):
     # helper methods
     def __init__(self, standalone = False):
         super(BatShell, self).__init__()
+        self.logger = logging.getLogger('batman.UI.BatShell')
         self._test_man = TestManager(standalone)
         self._box = None
         self._test_log = None

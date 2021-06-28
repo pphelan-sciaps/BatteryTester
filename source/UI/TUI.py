@@ -38,7 +38,7 @@ PROMPT_STR_DEFAULT = '(BatShell) '
 
 class TUI():
     def __init__(self):
-        self.logger = logging.getLogger('batman.TUI')
+        self.logger = logging.getLogger('batman.UI.TUI')
 
         self.shell = BatShell()
         self.boxes = []
@@ -140,16 +140,21 @@ class TUI():
         
         elif key_int == ord('q'):   # quickcharge
             charge_level_str = self.get_prompt('charge level: ')
+            self.logger.info(f'charge level entered - {charge_level_str}')
             try:
-                charge_level = int(charge_level_str)
+                charge_level = float(charge_level_str)
                 if charge_level < 0 or charge_level > 100:
                     raise ValueError
                 else:
                     self.shell.onecmd(f'quickcharge {charge_level}')
                     self.prompt_str = PROMPT_STR_DEFAULT + f'quickcharge set to {charge_level}%'
-            except ValueError:
+            except ValueError as e:
                 self.prompt_str = PROMPT_STR_DEFAULT + f'value must be number between 0-100%'
+                self.draw_prompt_win()
+                self.logger.exception(e)
+                raise e
             except Exception as e:
+                self.logger.exception(e)
                 raise e
         
         elif key_int == ord('d'):   # demo cycle
@@ -204,6 +209,8 @@ class TUI():
 
         del textbox
         del textbox_win
+
+        self.logger.info(f'get_prompt - "{command_str}"')
 
         return command_str
 

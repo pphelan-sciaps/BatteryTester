@@ -187,6 +187,7 @@ class LTC2943(object):
     def get_all(self) -> dict:
         result = {
             'bat_timestamp'     : datetime.now(),
+            'bat_timestamp_ms'  : 0,
             'bat_voltage_mV'    : self.voltage_mV,
             'bat_current_mA'    : self.current_mA,
             'bat_charge_mAh'    : self.charge_mAh,

@@ -103,11 +103,6 @@ class TestLog(object):
 
     def add_result(self, result_dict):
         # elapsed time in HH:MM:SS.ms and ms
-        # result_datetime = result_dict['bat_timestamp']
-        # dt = result_datetime - self._start_datetime
-        # self._t_elapsed_ms = dt.seconds * 1000 + dt.microseconds / 1000
-        # result_dict['bat_timestamp'] = self._t_elapsed_ms
-
         result_row = [*result_dict.values()]
 
         self._results.append(result_dict)

@@ -128,14 +128,13 @@ class RegisterMap(object):
         transaction=True,
         retries: int=0
     ):
-
         reg = self._registers.get(reg_addr, None)
         if not reg:
             raise I2CError('invalid register address')
             return
 
         if transaction:
-            self.read_reg(reg_addr,retries)
+            self.read_reg(reg_addr,retries=retries)
         return reg.get_bit(bit_num)
 
                      
@@ -226,9 +225,8 @@ class Register(object):
     #     return bool(self._value[idx])
 
     def __repr__(self):
-        return (f'Addr: ' + self._address +
-            f' RW: ' + self._read_write +
-            f' Value: ' + self._value.hex)
+        return (f'Addr: {hex(self._address)} RW: {self._read_write} Value: {hex(self._value)})')
+        pass
 
     # # helper methods
     # def bit_to_index(self, bit: int):
@@ -303,6 +301,8 @@ class I2C(object):
             except ft4222.FT4222DeviceError as e:
                 raise e
                 break
+            except Exception as e:
+                self.logger.exception(e)
 
 
     def read(
@@ -372,6 +372,11 @@ class I2C(object):
 # helper functions
 def uint8_to_uint(msb: int = 0, lsb: int = 0):
     return (msb << 8) + lsb
+
+def uint_to_uint8(val: int):
+    msb = (val >> 8) & 0xFF
+    lsb = (val) & 0xFF
+    return (msb, lsb)
 
 # exceptions
 class I2CError(Exception):

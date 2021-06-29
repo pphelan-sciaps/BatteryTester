@@ -184,6 +184,8 @@ class LogState(State):
         super().do()
         global test_log
         # self._test_box_half.gas_gauge.control_init()
+
+        # sample and record data
         try:
             gas_gauge_data = self._test_box_half.gas_gauge.get_all()
             result_datetime = gas_gauge_data['bat_timestamp']
@@ -198,6 +200,16 @@ class LogState(State):
         except Exception as e:
             self.logger.exception(e)
             raise e
+
+        # charges overflow
+        if self._test_box_half.gas_gauge.overflow:
+            if gas_gauge_data['bat_charge_level'] < 50:     # overflow
+                self._test_box_half.gas_gauge.charge = 0xFFFF - 100
+                self.logger.info('charge accum overflow')
+            else:   # underflow
+                self._test_box_half.gas_gauge.charge = 100
+                self.logger.info('charge accum underflow')
+                
 
 # Implementations
 # class ErrorState(State):
@@ -388,7 +400,8 @@ class ChargeTestState(LogState):
 
 
     def do(self):
-        super().do()        
+        # sample and record data
+        super().do()
 
     def next(self, flag):
         global charge_test_level
@@ -401,7 +414,7 @@ class ChargeTestState(LogState):
         except I2CError:
             level_limit = False
             delta_t = datetime.now() - self._last_read_time
-            read_timeout = delta_t > STATE_TIMEOUT_TD
+            read_timeout = delta_t > self.STATE_TIMEOUT_TD
 
         default_next = super().next(flag)
         if default_next is not None:
@@ -441,6 +454,7 @@ class DischargeTestState(LogState):
     ):
         super().__init__(test_box_half)
         self._test_box_half.gpio.discharge_enable = True
+        self._voltage_lim_debounce = 0
         self._current_lim_debounce = 0
         self._quickcharge = quickcharge
         self._state_start_time = datetime.now()
@@ -453,6 +467,13 @@ class DischargeTestState(LogState):
         global charge_test_level
 
         try:
+            # low voltage
+            if abs(self._test_box_half.gas_gauge.voltage_mV) < 10000:
+                self._voltage_lim_debounce += 1
+            else:
+                self._voltage_lim_debounce = 0
+            voltage_limit = self._voltage_lim_debounce > 10
+
             # idle current (fully discharged)
             if abs(self._test_box_half.gas_gauge.current_mA) < 25:
                 self._current_lim_debounce += 1
@@ -472,6 +493,7 @@ class DischargeTestState(LogState):
         except I2CError:
             self.logger.warning(I2CError)
             self._current_lim_debounce = 0
+            voltage_lim = False
             current_limit = False
             level_limit = False
             discharged = False
@@ -485,7 +507,7 @@ class DischargeTestState(LogState):
             self.logger.warning('test timeout')
             self.teardown()
             return IdleState(self._test_box_half)
-        elif current_limit or discharged or level_limit:
+        elif voltage_limit or current_limit or discharged or level_limit:
             if self._quickcharge:
                 self.logger.info('quickcharge complete')
                 self.teardown()
@@ -594,11 +616,13 @@ class DischargeTestState(LogState):
 #         return self
 
 class PostTestState(State):
-    STATE_TIMEOUT_TD = timedelta(hours=4.5)
-    name = States.POSTTEST.value
+    STATE_TIMEOUT_TD = timedelta(hours=2)
+    NAME = States.POSTTEST.value
+
     def __init__(
         self,
         test_box_half: TestBoxHalf = None,
+        quickcharge = False
     ):
         super().__init__(test_box_half)
         self._test_box_half.gas_gauge.control_init()
@@ -607,6 +631,7 @@ class PostTestState(State):
 
         global test_log
         global test_pass
+        self.logger.info('test pass fail check')
         test_pass = test_log.test_pass()
 
     def do(self):
@@ -623,13 +648,14 @@ class PostTestState(State):
 
         if flag == Flags.STOP:
             # print('CHARGE_TEST stopped')
+            self.logger.info('test stopped')
             self._test_box_half.gpio.charge_enable = False
             return IdleState(self._test_box_half)
         if self._test_box_half.gas_gauge.charge_level > charge_setpoint:
             # print('TEST DONE')
             self._test_box_half.gas_gauge.control_init()
             self._test_box_half.gpio.charge_enable = False
-            
+            self.logger.info('storage charge level reached')
             global test_pass
             if test_pass:
                 self._test_box_half.gpio.led_done_enable = True

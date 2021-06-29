@@ -16,8 +16,8 @@ ColorPair = namedtuple('ColorPair', ['idx', 'fg', 'bg'])
 color_pairs = {
     'BY' : ColorPair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW),
     'BW' : ColorPair(2, curses.COLOR_BLACK, curses.COLOR_WHITE),
-    'BG' : ColorPair(3, curses.COLOR_BLACK, curses.COLOR_GREEN),
-    'BR' : ColorPair(4, curses.COLOR_BLACK, curses.COLOR_RED)
+    'WG' : ColorPair(3, curses.COLOR_WHITE, curses.COLOR_GREEN),
+    'WR' : ColorPair(4, curses.COLOR_WHITE, curses.COLOR_RED)
 }
 
 Command = namedtuple('Command', ['key_str', 'key_int', 'description'])
@@ -118,7 +118,17 @@ class TUI():
             curses.beep()
             self.logger.info(f'{chr(key_int)} pressed')
         else:   # update prompt window when no key pressed
-            pass
+            test_state = self.shell.onecmd('test_state')
+            # print(test_statetui.bat)
+            if test_state == States.POSTTEST.value:
+                test_pass = self.shell.onecmd('test_pass')
+                if test_pass:
+                    result = 'pass'
+                    color_key = 'WG'
+                else:
+                    result = 'fail - please review log file'
+                    color_key = 'WR'
+                self.draw_prompt_win(f'test result: {result}',color_key)
 
         shell_str = ''
         if key_int == ord('e'):     # exit
@@ -145,7 +155,7 @@ class TUI():
             self.logger.info(f'charge level entered - {charge_level_str}')
             try:
                 charge_level = float(charge_level_str)
-                if charge_level < 0 or charge_level > 100:
+                if charge_level < 0 or charge_level > 101:
                     raise ValueError
                 else:
                     self.shell.onecmd(f'quickcharge {charge_level}')
@@ -233,14 +243,6 @@ class TUI():
         self.test_time = test_time if test_time else 'N/A'
 
         # test_pass = self.shell.onecmd('test_pass')
-
-        # if test_state == States.POSTTEST.value:
-        #     if test_pass:
-        #         result = 'pass'
-        #     else:
-        #         result = 'fail - please review log file'
-        #     self.draw_prompt_win(f'test result: {result}')
-
         
         try:
             stats = self.shell.onecmd('read_gas_gauge')

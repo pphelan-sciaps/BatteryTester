@@ -9,7 +9,7 @@ from datetime import datetime
 from .I2C import I2C, I2CError
 from .I2C import RegisterMap
 from .I2C import Register
-from .I2C import uint8_to_uint
+from .I2C import uint8_to_uint, uint_to_uint8
 from .ConnectionManager import ConnectionManager
 
 class LTC2943(object):
@@ -57,6 +57,10 @@ class LTC2943(object):
     @property
     def status_reg(self):
         return self._reg_map.read_reg(0x00)
+
+    @property
+    def overflow(self):
+        return self._reg_map.read_bit(0x00, 5)
 
     # TODO Register indexing
     # @property
@@ -129,6 +133,15 @@ class LTC2943(object):
         
         return charge
 
+    @charge.setter
+    def charge(self, charge_lsbs):
+        if charge_lsbs > 0xFFFF or charge_lsbs < 0:
+            raise GasGaugeError(f'invalid charge value: {charge_lsbs} ({hex(charge_lsbs)}')
+        else:
+            msb, lsb = uint_to_uint8(charge_lsbs)
+            self._reg_map.write_reg(0x02,msb,retries=5)
+            self._reg_map.write_reg(0x03,lsb,retries=5)
+
     @property
     def charge_register(self):
         charge = self.charge
@@ -146,6 +159,10 @@ class LTC2943(object):
         charge = self.charge
         if charge:
             return charge['level']
+
+    # @property
+    # pass
+    
     
     @property
     def voltage_mV(self):
@@ -207,6 +224,8 @@ class LTC2943(object):
         else:
             return 'no battery connected'
 
+class GasGaugeError(Exception):
+    pass
 
 # helper classes
 class ADCMode(IntEnum):

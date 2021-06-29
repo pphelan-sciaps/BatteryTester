@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 # program wide config and constants
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 # logfile
 def logger_init(fname=None):
